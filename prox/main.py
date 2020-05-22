@@ -304,5 +304,20 @@ def main(**args):
 
 
 if __name__ == "__main__":
-    args = parse_config()
+    SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
+    DATA_FOLDER="/media/psf/WVerbatim/data/mevolve/prox/quantitative/recordings/vicon_03301_01"
+    MODELS_FOLDER="/media/psf/WVerbatim/data/mevolve/prox"
+    argv=[
+        "--config", SCRIPT_PATH+"/../cfg_files/SMPLifyD.yaml",
+        "--recording_dir", DATA_FOLDER,
+        "--output_folder", DATA_FOLDER +"/output",
+        "--vposer_ckpt", MODELS_FOLDER + "/models/vposer_v1_0/",
+        "--part_segm_fn", MODELS_FOLDER + "/models/smplx_parts_segm.pkl",
+        "--model_folder", MODELS_FOLDER + "/models",
+        "--use_cuda", "0",
+        "--interpenetration", "0",
+        "--save_meshes", "1",
+        "--render_results", "0"]
+    argv=None
+    args = parse_config(argv)
     main(**args)

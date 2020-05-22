@@ -31,8 +31,9 @@ from psbody.mesh.visibility import visibility_compute
 from psbody.mesh import Mesh
 
 import misc_utils as utils
-import dist_chamfer as ext
-distChamfer = ext.chamferDist()
+# import dist_chamfer as ext
+# distChamfer = ext.chamferDist()
+from chamfer_python import distChamfer
 
 @torch.no_grad()
 def guess_init(model,
@@ -185,6 +186,7 @@ class FittingMonitor(object):
         append_wrists = self.model_type == 'smpl' and use_vposer
         prev_loss = None
         for n in range(self.maxiters):
+            print("iteration:", n)
             loss = optimizer.step(closure)
 
             if torch.isnan(loss).sum() > 0:
@@ -529,7 +531,7 @@ class SMPLifyLoss(nn.Module):
                 pen_loss = torch.sum(
                     self.coll_loss_weight *
                     self.pen_distance(triangles, collision_idxs))
-
+        icp_dist = 0.0
         s2m_dist = 0.0
         m2s_dist = 0.0
         # calculate the scan2mesh and mesh2scan loss from the sparse point cloud
@@ -541,18 +543,24 @@ class SMPLifyLoss(nn.Module):
 
             (vis, n_dot) = visibility_compute(v=m.v, f=m.f, cams=np.array([[0.0, 0.0, 0.0]]))
             vis = vis.squeeze()
+            
+            if self.s2m or self.m2s:
+                import icp
+                icp_dist = icp.dist_icp(scan_tensor[:,:,:], 
+                                    body_model_output.vertices[:, np.where(vis > 0)[0], :])
+                icp_dist = self.s2m_robustifier(icp_dist.sqrt())
+                icp_dist = self.s2m_weight * icp_dist.sum()
 
-            if self.s2m and self.s2m_weight > 0 and vis.sum() > 0:
-                s2m_dist, _, _, _ = distChamfer(scan_tensor,
-                                                body_model_output.vertices[:, np.where(vis > 0)[0], :])
-                s2m_dist = self.s2m_robustifier(s2m_dist.sqrt())
-                s2m_dist = self.s2m_weight * s2m_dist.sum()
-            if self.m2s and self.m2s_weight > 0 and vis.sum() > 0:
-                _, m2s_dist, _, _ = distChamfer(scan_tensor,
-                                                body_model_output.vertices[:, np.where(np.logical_and(vis > 0, self.body_mask))[0], :])
-
-                m2s_dist = self.m2s_robustifier(m2s_dist.sqrt())
-                m2s_dist = self.m2s_weight * m2s_dist.sum()
+#            if self.s2m and self.s2m_weight > 0 and vis.sum() > 0:
+#                s2m_dist, _, _, _ = distChamfer(scan_tensor,
+#                                                 body_model_output.vertices[:, np.where(vis > 0)[0], :])
+#                s2m_dist = self.s2m_robustifier(s2m_dist.sqrt())
+#                s2m_dist = self.s2m_weight * s2m_dist.sum()
+#            if self.m2s and self.m2s_weight > 0 and vis.sum() > 0:
+#                _, m2s_dist, _, _ = distChamfer(scan_tensor,
+#                                                 body_model_output.vertices[:, np.where(np.logical_and(vis > 0, self.body_mask))[0], :])
+#                m2s_dist = self.m2s_robustifier(m2s_dist.sqrt())
+#                m2s_dist = self.m2s_weight * m2s_dist.sum()
 
         # Transform vertices to world coordinates
         if self.R is not None and self.t is not None:
@@ -583,46 +591,46 @@ class SMPLifyLoss(nn.Module):
 
         # Compute the contact loss
         contact_loss = 0.0
-        if self.contact and self.contact_loss_weight >0:
-            # select contact vertices
-            contact_body_vertices = vertices[:, self.contact_verts_ids, :]
-            contact_dist, _, idx1, _ = distChamfer(
-                contact_body_vertices.contiguous(), scene_v)
+        # if self.contact and self.contact_loss_weight >0:
+        #     # select contact vertices
+        #     contact_body_vertices = vertices[:, self.contact_verts_ids, :]
+        #     contact_dist, _, idx1, _ = distChamfer(
+        #         contact_body_vertices.contiguous(), scene_v)
 
-            body_triangles = torch.index_select(
-                vertices, 1,
-                body_model_faces).view(1, -1, 3, 3)
-            # Calculate the edges of the triangles
-            # Size: BxFx3
-            edge0 = body_triangles[:, :, 1] - body_triangles[:, :, 0]
-            edge1 = body_triangles[:, :, 2] - body_triangles[:, :, 0]
-            # Compute the cross product of the edges to find the normal vector of
-            # the triangle
-            body_normals = torch.cross(edge0, edge1, dim=2)
-            # Normalize the result to get a unit vector
-            body_normals = body_normals / \
-                torch.norm(body_normals, 2, dim=2, keepdim=True)
-            # compute the vertex normals
-            body_v_normals = torch.mm(ftov, body_normals.squeeze())
-            body_v_normals = body_v_normals / \
-                torch.norm(body_v_normals, 2, dim=1, keepdim=True)
+        #     body_triangles = torch.index_select(
+        #         vertices, 1,
+        #         body_model_faces).view(1, -1, 3, 3)
+        #     # Calculate the edges of the triangles
+        #     # Size: BxFx3
+        #     edge0 = body_triangles[:, :, 1] - body_triangles[:, :, 0]
+        #     edge1 = body_triangles[:, :, 2] - body_triangles[:, :, 0]
+        #     # Compute the cross product of the edges to find the normal vector of
+        #     # the triangle
+        #     body_normals = torch.cross(edge0, edge1, dim=2)
+        #     # Normalize the result to get a unit vector
+        #     body_normals = body_normals / \
+        #         torch.norm(body_normals, 2, dim=2, keepdim=True)
+        #     # compute the vertex normals
+        #     body_v_normals = torch.mm(ftov, body_normals.squeeze())
+        #     body_v_normals = body_v_normals / \
+        #         torch.norm(body_v_normals, 2, dim=1, keepdim=True)
 
-            # vertix normals of contact vertices
-            contact_body_verts_normals = body_v_normals[self.contact_verts_ids, :]
-            # scene normals of the closest points on the scene surface to the contact vertices
-            contact_scene_normals = scene_vn[:, idx1.squeeze().to(
-                dtype=torch.long), :].squeeze()
+        #     # vertix normals of contact vertices
+        #     contact_body_verts_normals = body_v_normals[self.contact_verts_ids, :]
+        #     # scene normals of the closest points on the scene surface to the contact vertices
+        #     contact_scene_normals = scene_vn[:, idx1.squeeze().to(
+        #         dtype=torch.long), :].squeeze()
 
-            # compute the angle between contact_verts normals and scene normals
-            angles = torch.asin(
-                torch.norm(torch.cross(contact_body_verts_normals, contact_scene_normals), 2, dim=1, keepdim=True)) *180 / np.pi
+        #     # compute the angle between contact_verts normals and scene normals
+        #     angles = torch.asin(
+        #         torch.norm(torch.cross(contact_body_verts_normals, contact_scene_normals), 2, dim=1, keepdim=True)) *180 / np.pi
 
-            # consider only the vertices which their normals match
-            valid_contact_mask = (angles.le(self.contact_angle) + angles.ge(180 - self.contact_angle)).ge(1)
-            valid_contact_ids = valid_contact_mask.squeeze().nonzero().squeeze()
+        #     # consider only the vertices which their normals match
+        #     valid_contact_mask = (angles.le(self.contact_angle) + angles.ge(180 - self.contact_angle)).ge(1)
+        #     valid_contact_ids = valid_contact_mask.squeeze().nonzero().squeeze()
 
-            contact_dist = self.contact_robustifier(contact_dist[:, valid_contact_ids].sqrt())
-            contact_loss = self.contact_loss_weight * contact_dist.mean()
+        #     contact_dist = self.contact_robustifier(contact_dist[:, valid_contact_ids].sqrt())
+        #     contact_loss = self.contact_loss_weight * contact_dist.mean()
 
         total_loss = (joint_loss + pprior_loss + shape_loss +
                       angle_prior_loss + pen_loss +
@@ -632,6 +640,7 @@ class SMPLifyLoss(nn.Module):
         if visualize:
             print('total:{:.2f}, joint_loss:{:0.2f},  s2m:{:0.2f}, m2s:{:0.2f}, penetration:{:0.2f}, contact:{:0.2f}'.
                   format(total_loss.item(), joint_loss.item() ,torch.tensor(s2m_dist).item(),
+                         torch.tensor(icp_dist).item(),
                          torch.tensor(m2s_dist).item() ,torch.tensor(sdf_penetration_loss).item(), torch.tensor(contact_loss).item()))
         return total_loss
 
