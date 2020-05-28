@@ -649,27 +649,28 @@ def fit_single_frame(img,
                 min_idx = 0
             pickle.dump(results[min_idx]['result'], result_file, protocol=2)
 
-
-    if save_meshes or visualize:
-        body_pose = vposer.decode(
-            pose_embedding,
-            output_type='aa').view(1, -1) if use_vposer else None
-
-        model_type = kwargs.get('model_type', 'smpl')
-        append_wrists = model_type == 'smpl' and use_vposer
-        if append_wrists:
-                wrist_pose = torch.zeros([body_pose.shape[0], 6],
-                                         dtype=body_pose.dtype,
-                                         device=body_pose.device)
-                body_pose = torch.cat([body_pose, wrist_pose], dim=1)
-
-        model_output = body_model(return_verts=True, body_pose=body_pose)
-        vertices = model_output.vertices.detach().cpu().numpy().squeeze()
-
-        import trimesh
-
-        out_mesh = trimesh.Trimesh(vertices, body_model.faces, process=False)
-        out_mesh.export(mesh_fn)
+        print("save_meshes:", save_meshes)
+        save_meshes=True
+        if save_meshes or visualize:
+            body_pose = vposer.decode(
+                pose_embedding,
+                output_type='aa').view(1, -1) if use_vposer else None
+    
+            model_type = kwargs.get('model_type', 'smpl')
+            append_wrists = model_type == 'smpl' and use_vposer
+            if append_wrists:
+                    wrist_pose = torch.zeros([body_pose.shape[0], 6],
+                                             dtype=body_pose.dtype,
+                                             device=body_pose.device)
+                    body_pose = torch.cat([body_pose, wrist_pose], dim=1)
+    
+            model_output = body_model(return_verts=True, body_pose=body_pose)
+            vertices = model_output.vertices.detach().cpu().numpy().squeeze()
+    
+            import trimesh
+            print("vertices:", vertices.shape, " mesh_fn:", mesh_fn)
+            out_mesh = trimesh.Trimesh(vertices, body_model.faces, process=False)
+            out_mesh.export(mesh_fn)
 
     if render_results:
         import pyrender

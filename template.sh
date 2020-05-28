@@ -8,7 +8,7 @@ python3 prox/main.py --config cfg_files/SMPLifyD.yaml \
     --model_folder "${MODELS_FOLDER}/models" \
     --use_cuda=0 \
     --interpenetration=0 \
-    --save_meshes=1 \
+    --save_meshes="True" \
     --render_results=0 \
 
 
