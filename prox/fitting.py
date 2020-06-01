@@ -483,7 +483,7 @@ class SMPLifyLoss(nn.Module):
         # to prevent extreme rotation of the elbows and knees
         body_pose = body_model_output.full_pose[:, 3:66]
         angle_prior_loss = torch.sum(
-            self.angle_prior(body_pose)) * self.bending_prior_weight ** 2
+            self.angle_prior(body_pose)) * self.bending_prior_weight #** 2
 
         # Apply the prior on the pose space of the hand
         left_hand_prior_loss, right_hand_prior_loss = 0.0, 0.0
@@ -546,9 +546,9 @@ class SMPLifyLoss(nn.Module):
             
             if self.s2m or self.m2s:
                 import icp
-                icp_dist = icp.dist_icp(scan_tensor[:,:,:], 
+                icp_dist = icp.dist_icp(scan_tensor, 
                                     body_model_output.vertices[:, np.where(vis > 0)[0], :])
-                icp_dist = self.s2m_robustifier(icp_dist.sqrt())
+                icp_dist = self.s2m_robustifier(icp_dist) #(icp_dist.sqrt())
                 icp_dist = self.s2m_weight * icp_dist.sum()
 
 #            if self.s2m and self.s2m_weight > 0 and vis.sum() > 0:
@@ -634,9 +634,11 @@ class SMPLifyLoss(nn.Module):
 
         total_loss = (joint_loss + pprior_loss + shape_loss +
                       angle_prior_loss + pen_loss +
-                      jaw_prior_loss + expression_loss +
-                      left_hand_prior_loss + right_hand_prior_loss + m2s_dist + s2m_dist
-                      + sdf_penetration_loss + contact_loss)
+                      # jaw_prior_loss + expression_loss +
+                      # left_hand_prior_loss + right_hand_prior_loss + 
+                      icp_dist +
+                      # m2s_dist + s2m_dist +
+                      sdf_penetration_loss + contact_loss)
         if visualize:
             print('total:{:.2f}, joint_loss:{:0.2f},  s2m:{:0.2f}, m2s:{:0.2f}, penetration:{:0.2f}, contact:{:0.2f}'.
                   format(total_loss.item(), joint_loss.item() ,torch.tensor(s2m_dist).item(),

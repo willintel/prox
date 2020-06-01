@@ -137,7 +137,7 @@ def dist_icp(src, dst, standard_deviation_range=0.0):
     else:
         diff = src[:,:,:] - dst[:,indices,:]
         
-    return torch.sum(diff**2)
+    return diff #torch.sum(diff**2)
 
 def unit_vector(vector):
     """ Returns the unit vector of the vector.  """

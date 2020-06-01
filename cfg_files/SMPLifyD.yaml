@@ -27,8 +27,8 @@ m2s_weights:
 s2m: True
 rho_s2m: 2e-1
 s2m_weights:
-    - 1.0
-    - 1.0
+    - 0.0
+    - 0.0
     - 1e2
     - 5e2
     - 5e2
