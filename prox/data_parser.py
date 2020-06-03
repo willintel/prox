@@ -144,8 +144,12 @@ class OpenPose(Dataset):
         self.num_joints = (self.NUM_BODY_JOINTS +
                            2 * self.NUM_HAND_JOINTS * use_hands)
         self.img_folder = osp.join(data_folder, img_folder)
+        if not os.path.exists(self.img_folder):
+            self.img_folder = osp.join(data_folder, "color")
         self.keyp_folder = osp.join(keyp_folder)
         self.depth_folder = os.path.join(data_folder, depth_folder)
+        if not os.path.exists(self.depth_folder):
+            self.depth_folder = osp.join(data_folder, "depth")
         self.mask_folder = os.path.join(data_folder, mask_folder)
         self.mask_color_folder = os.path.join(data_folder, mask_color_folder)
 
@@ -225,6 +229,7 @@ class OpenPose(Dataset):
             depth_im = cv2.imread(os.path.join(self.depth_folder, img_fn + '.png'), flags=-1).astype(float)
             depth_im = depth_im / 8.
             depth_im = depth_im * self.depth_scale
+            depth_im[depth_im > 2.0] = 0
             if self.flip:
                 depth_im = cv2.flip(depth_im, 1)
 
@@ -232,11 +237,19 @@ class OpenPose(Dataset):
         if self.read_mask:
             if self.mask_on_color:
                 mask = cv2.imread(os.path.join(self.mask_color_folder, img_fn + '.png'), cv2.IMREAD_GRAYSCALE)
-            else:
+            elif osp.exists(os.path.join(self.mask_folder, img_fn + '.png')):
                 mask = cv2.imread(os.path.join(self.mask_folder, img_fn + '.png'), cv2.IMREAD_GRAYSCALE)
                 mask = cv2.threshold(mask, 254, 255, cv2.THRESH_BINARY)[1]
+            else:
+                mask = np.ones(depth_im.shape, dtype=np.uint8)
+                mask[depth_im > 0.3]= 0
+                mask[depth_im < 2.0] = 0
             if self.flip:
                 mask = cv2.flip(mask, 1)
+        else:
+            mask = np.ones(depth_im.shape, dtype=np.uint8)
+            mask[depth_im > 0.3]= 0
+            mask[depth_im < 2.0] = 0
 
         scan_dict = None
         init_trans = None

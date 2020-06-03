@@ -267,11 +267,14 @@ def fit_single_frame(img,
         sdf_normals = np.load(osp.join(sdf_dir, scene_name + '_normals.npy')).reshape(grid_dim, grid_dim, grid_dim, 3)
         sdf_normals = torch.tensor(sdf_normals, dtype=dtype, device=device)
 
-
-    with open(os.path.join(cam2world_dir, scene_name + '.json'), 'r') as f:
-        cam2world = np.array(json.load(f))
-        R = torch.tensor(cam2world[:3, :3].reshape(3, 3), dtype=dtype, device=device)
-        t = torch.tensor(cam2world[:3, 3].reshape(1, 3), dtype=dtype, device=device)
+    fn = os.path.join(cam2world_dir, scene_name + '.json')
+    if osp.exists(fn):
+        with open(os.path.join(cam2world_dir, scene_name + '.json'), 'r') as f:
+            cam2world = np.array(json.load(f))
+    else:
+        cam2world = np.eye(4)
+    R = torch.tensor(cam2world[:3, :3].reshape(3, 3), dtype=dtype, device=device)
+    t = torch.tensor(cam2world[:3, 3].reshape(1, 3), dtype=dtype, device=device)
 
     # Create the search tree
     search_tree = None

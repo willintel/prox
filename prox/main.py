@@ -46,14 +46,21 @@ def main(**args):
     data_folder = args.get('recording_dir')
     recording_name = osp.basename(args.get('recording_dir'))
     scene_name = recording_name.split("_")[0]
-    base_dir = os.path.abspath(osp.join(args.get('recording_dir'), os.pardir, os.pardir))
+    base_dir = os.path.abspath(osp.join(args.get('recording_dir')))
+    if not osp.exists(osp.join(base_dir, "calibration")):
+        base_dir = os.path.abspath(osp.join(args.get('recording_dir'), os.pardir, os.pardir))
+    print("base_dir:", base_dir)
     keyp_dir = osp.join(base_dir, 'keypoints')
     keyp_folder = osp.join(keyp_dir, recording_name)
+    if not osp.exists(keyp_folder):
+        keyp_folder = keyp_dir
     cam2world_dir = osp.join(base_dir, 'cam2world')
     scene_dir = osp.join(base_dir, 'scenes')
     calib_dir = osp.join(base_dir, 'calibration')
     sdf_dir = osp.join(base_dir, 'sdf')
     body_segments_dir = osp.join(base_dir, 'body_segments')
+    model_folder = args.get('model_folder')
+    body_segments_dir = osp.join(model_folder, "body_segments")
 
 
     output_folder = args.get('output_folder')
@@ -145,6 +152,7 @@ def main(**args):
     camera_center = None \
         if args.get('camera_center_x') is None or args.get('camera_center_y') is None \
         else torch.tensor([args.get('camera_center_x'), args.get('camera_center_y')], dtype=dtype).view(-1, 2)
+    print("args.get('focal_length_x'):", args.get('focal_length_x'))
     camera = create_camera(focal_length_x=args.get('focal_length_x'),
                            focal_length_y=args.get('focal_length_y'),
                            center= camera_center,
@@ -318,8 +326,32 @@ if __name__ == "__main__":
         "--use_cuda", "0",
         "--interpenetration", "0",
         "--save_meshes", "1",
-        "--render_results", "0"]
-    # argv=None
+        "--render_results", "0",
+        # "--camera_center_x", 
+        ]
+    
+#    MODELS_FOLDER="/media/psf/WVerbatim/data/mevolve/prox"
+#    PROX_SRC_PATH = "/home/william/dev/thirdparty/prox"
+##    FIT_DATA_FOLDER = fdata.get_root_folder()
+##    print("FIT_DATA_FOLDER:", FIT_DATA_FOLDER)
+#    FIT_DATA_FOLDER = "/media/psf/WVerbatim/data/mevolve/inhome-test-rig/2020_05_21/d435-dynamic-human_4shot-21_08_33/snapshots/fit-data"
+#    argv = [
+##        "python3", os.path.join(PROX_SRC_PATH, "prox", "main.py"),
+#        "--config", os.path.join(PROX_SRC_PATH,"cfg_files", "SMPLifyD.yaml"),
+##        "--config", SCRIPT_PATH+"/../cfg_files/RGB.yaml",
+#        "--recording_dir", FIT_DATA_FOLDER,
+#        "--output_folder", os.path.join(FIT_DATA_FOLDER, "prox"),
+#        "--vposer_ckpt", MODELS_FOLDER + "/models/vposer_v1_0/",
+#        "--part_segm_fn", MODELS_FOLDER + "/models/smplx_parts_segm.pkl",
+#        "--model_folder", MODELS_FOLDER + "/models",
+#        "--use_cuda", "0",
+#        "--interpenetration", "0",
+#        "--save_meshes", "1",
+#        "--render_results", "0",
+#        # "--camera_center_x", 
+#        ]
+    
+#    argv=None
     args = parse_config(argv)
-    print("args:", args)
+#    print("args:", args)
     main(**args)

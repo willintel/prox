@@ -22,9 +22,17 @@ import json
 
 class Projection():
     def __init__(self, calib_dir):
-        with open(osp.join(calib_dir, 'IR.json'), 'r') as f:
+        depth_fn = osp.join(calib_dir, 'depth.json')
+        if not osp.exists(depth_fn):
+            depth_fn = osp.join(calib_dir, 'IR.json')
+
+        color_fn = osp.join(calib_dir, 'color.json')
+        if not osp.exists(color_fn):
+            color_fn = osp.join(calib_dir, 'Color.json')
+
+        with open(depth_fn, 'r') as f:
             self.depth_cam = json.load(f)
-        with open(osp.join(calib_dir, 'Color.json'), 'r') as f:
+        with open(color_fn, 'r') as f:
             self.color_cam = json.load(f)
 
     def row(self, A):

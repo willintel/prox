@@ -636,9 +636,18 @@ class SMPLifyLoss(nn.Module):
                       angle_prior_loss + pen_loss +
                       # jaw_prior_loss + expression_loss +
                       # left_hand_prior_loss + right_hand_prior_loss + 
-                      icp_dist +
+                      icp_dist 
                       # m2s_dist + s2m_dist +
-                      sdf_penetration_loss + contact_loss)
+                      # sdf_penetration_loss + contact_loss 
+                      )
+        print("total:{:.2f}".format(total_loss),
+              " joint_loss:{:.2f}".format(joint_loss),
+              " pprior_loss:{:.2f}".format(pprior_loss),
+              " shape_loss:{:.2f}".format(shape_loss),
+              " angle_prior_loss:{:.2f}".format(angle_prior_loss),
+              " pen_loss:{:.2f}".format(pen_loss),
+              " icp_dist:{:.2f}".format(icp_dist)
+              )
         if visualize:
             print('total:{:.2f}, joint_loss:{:0.2f},  s2m:{:0.2f}, m2s:{:0.2f}, penetration:{:0.2f}, contact:{:0.2f}'.
                   format(total_loss.item(), joint_loss.item() ,torch.tensor(s2m_dist).item(),
@@ -686,6 +695,11 @@ class SMPLifyCameraInitLoss(nn.Module):
 
     def forward(self, body_model_output, camera, gt_joints, body_model,
                 **kwargs):
+
+        print("camera.focal_length_x:", camera.focal_length_x,
+            "camera.focal_length_y:", camera.focal_length_y,
+            "camera.center:", camera.center
+            )
 
         projected_joints = camera(body_model_output.joints)
 
