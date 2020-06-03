@@ -7,14 +7,18 @@ focal_length_x: 1060.5317
 focal_length_y: 1060.3856
 camera_center_x: 951.2999
 camera_center_y: 536.7704
-flip: True
+flip: False
 camera_mode: 'fixed'
+
+#depth_scale: 8000
+depth_scale: 10000
 
 read_depth: True
 read_mask: False
 mask_on_color: False
 # Depth
 init_mode: 'scan'
+#init_mode: 'both'
 m2s: True
 rho_m2s: 5e-1
 m2s_weights:
@@ -63,7 +67,7 @@ result_folder: 'results'
 gender: "male"
 model_type: 'smplx'
 # Flag for using the GPU
-use_cuda: False
+use_cuda: True
 float_dtype: "float32"
 use_joints_conf: True
 use_pca: True

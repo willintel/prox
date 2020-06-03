@@ -330,14 +330,14 @@ if __name__ == "__main__":
         # "--camera_center_x", 
         ]
     
-#    MODELS_FOLDER="/media/psf/WVerbatim/data/mevolve/prox"
-#    PROX_SRC_PATH = "/home/william/dev/thirdparty/prox"
-##    FIT_DATA_FOLDER = fdata.get_root_folder()
-##    print("FIT_DATA_FOLDER:", FIT_DATA_FOLDER)
-#    FIT_DATA_FOLDER = "/media/psf/WVerbatim/data/mevolve/inhome-test-rig/2020_05_21/d435-dynamic-human_4shot-21_08_33/snapshots/fit-data"
+    MODELS_FOLDER="/media/psf/WVerbatim/data/mevolve/prox"
+    PROX_SRC_PATH = "/home/william/dev/thirdparty/prox"
+#    FIT_DATA_FOLDER = fdata.get_root_folder()
+#    print("FIT_DATA_FOLDER:", FIT_DATA_FOLDER)
+    FIT_DATA_FOLDER = "/media/psf/WVerbatim/data/mevolve/inhome-test-rig/2020_05_21/d435-dynamic-human_4shot-21_08_33/snapshots/fit-data"
 #    argv = [
 ##        "python3", os.path.join(PROX_SRC_PATH, "prox", "main.py"),
-#        "--config", os.path.join(PROX_SRC_PATH,"cfg_files", "SMPLifyD.yaml"),
+#        "--config", os.path.join(PROX_SRC_PATH,"cfg_files", "SMPLifyD-d435.yaml"),
 ##        "--config", SCRIPT_PATH+"/../cfg_files/RGB.yaml",
 #        "--recording_dir", FIT_DATA_FOLDER,
 #        "--output_folder", os.path.join(FIT_DATA_FOLDER, "prox"),

@@ -544,10 +544,11 @@ class SMPLifyLoss(nn.Module):
             (vis, n_dot) = visibility_compute(v=m.v, f=m.f, cams=np.array([[0.0, 0.0, 0.0]]))
             vis = vis.squeeze()
             
-            if self.s2m or self.m2s:
+            if (self.s2m or self.m2s) and self.s2m_weight > 0:
                 import icp
                 icp_dist = icp.dist_icp(scan_tensor, 
                                     body_model_output.vertices[:, np.where(vis > 0)[0], :])
+#                icp_dist = icp.dist_icp(body_model_output.vertices[:, np.where(vis > 0)[0], :], scan_tensor)
                 icp_dist = self.s2m_robustifier(icp_dist) #(icp_dist.sqrt())
                 icp_dist = self.s2m_weight * icp_dist.sum()
 
