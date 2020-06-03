@@ -12,6 +12,7 @@ camera_mode: 'fixed'
 
 #depth_scale: 8000
 depth_scale: 10000
+depth_max: 2.0
 
 read_depth: True
 read_mask: False
@@ -22,13 +23,13 @@ init_mode: 'scan'
 m2s: True
 rho_m2s: 5e-1
 m2s_weights:
-    - 1.0
-    - 1.0
-    - 1.0
-    - 1.0
-    - 1.0
+    - 0.0
+    - 0.0
+    - 1e2
+    - 5e2
+    - 5e2
 
-s2m: True
+s2m: False
 rho_s2m: 2e-1
 s2m_weights:
     - 0.0
