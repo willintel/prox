@@ -227,9 +227,9 @@ class OpenPose(Dataset):
         depth_im = None
         if self.read_depth:
             depth_im = cv2.imread(os.path.join(self.depth_folder, img_fn + '.png'), flags=-1).astype(float)
-            depth_im = depth_im / 8.
-            depth_im = depth_im * self.depth_scale
-            depth_im[depth_im > 2.0] = 0
+#            depth_im = depth_im / 8.
+            depth_im = depth_im / self.depth_scale
+#            depth_im[depth_im > 2.0] = 0
             if self.flip:
                 depth_im = cv2.flip(depth_im, 1)
 
@@ -271,6 +271,13 @@ class OpenPose(Dataset):
         if keyp_tuple.gender_pd is not None:
             if len(keyp_tuple.gender_pd) > 0:
                 output_dict['gender_pd'] = keyp_tuple.gender_pd
+                
+        depth_output = os.path.join(self.depth_folder, "pointcloud")
+        if not os.path.exists(depth_output):
+            os.makedirs(depth_output)
+        import trimesh
+        m = trimesh.Trimesh(scan_dict['points'], None, process=False)
+        m.export(os.path.join(depth_output, img_fn+".ply"))
         return output_dict
 
     def __iter__(self):
