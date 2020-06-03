@@ -123,6 +123,7 @@ class OpenPose(Dataset):
                  read_mask=False,
                  mask_on_color=False,
                  depth_scale=1e-3,
+                 depth_max=10.0,
                  flip=False,
                  start=0,
                  step=1,
@@ -166,6 +167,7 @@ class OpenPose(Dataset):
 
         self.cnt = 0
         self.depth_scale = depth_scale
+        self.depth_max = depth_max
         self.flip = flip
         self.read_depth = read_depth
         self.read_mask = read_mask
@@ -227,9 +229,8 @@ class OpenPose(Dataset):
         depth_im = None
         if self.read_depth:
             depth_im = cv2.imread(os.path.join(self.depth_folder, img_fn + '.png'), flags=-1).astype(float)
-#            depth_im = depth_im / 8.
             depth_im = depth_im / self.depth_scale
-#            depth_im[depth_im > 2.0] = 0
+            depth_im[depth_im > self.depth_max] = 0
             if self.flip:
                 depth_im = cv2.flip(depth_im, 1)
 
@@ -246,7 +247,7 @@ class OpenPose(Dataset):
                 mask[depth_im < 2.0] = 0
             if self.flip:
                 mask = cv2.flip(mask, 1)
-        else:
+        elif depth_im is not None:
             mask = np.ones(depth_im.shape, dtype=np.uint8)
             mask[depth_im > 0.3]= 0
             mask[depth_im < 2.0] = 0
@@ -276,8 +277,10 @@ class OpenPose(Dataset):
         if not os.path.exists(depth_output):
             os.makedirs(depth_output)
         import trimesh
-        m = trimesh.Trimesh(scan_dict['points'], None, process=False)
-        m.export(os.path.join(depth_output, img_fn+".ply"))
+        
+        if scan_dict is not None:
+            m = trimesh.Trimesh(scan_dict['points'], None, process=False)
+            m.export(os.path.join(depth_output, img_fn+".ply"))
         return output_dict
 
     def __iter__(self):
