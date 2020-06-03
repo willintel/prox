@@ -273,6 +273,8 @@ def parse_config(argv=None):
                         help='The maximum iterations for the optimization')
     #######################################################################
     ### PROX
+    parser.add_argument('--depth_scale', type=float, default=8000,
+                        help='depth scale of depth images')
     parser.add_argument('--frame_ids',
                         default=None, type=int,
                         nargs='*',
