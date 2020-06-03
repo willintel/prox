@@ -275,6 +275,8 @@ def parse_config(argv=None):
     ### PROX
     parser.add_argument('--depth_scale', type=float, default=8000,
                         help='depth scale of depth images')
+    parser.add_argument('--depth_max', type=float, default=10.0,
+                        help='max depth value')
     parser.add_argument('--frame_ids',
                         default=None, type=int,
                         nargs='*',
