@@ -15,14 +15,14 @@ read_mask: True
 mask_on_color: True
 # Depth
 init_mode: 'scan'
-m2s: True
+m2s: False
 rho_m2s: 5e-1
 m2s_weights:
-    - 1.0
-    - 1.0
-    - 1.0
-    - 1.0
-    - 1.0
+    - 0.0
+    - 0.0
+    - 1e2
+    - 5e2
+    - 5e2
 
 s2m: True
 rho_s2m: 2e-1
