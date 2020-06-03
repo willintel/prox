@@ -544,13 +544,18 @@ class SMPLifyLoss(nn.Module):
             (vis, n_dot) = visibility_compute(v=m.v, f=m.f, cams=np.array([[0.0, 0.0, 0.0]]))
             vis = vis.squeeze()
             
-            if (self.s2m or self.m2s) and self.s2m_weight > 0:
+            if self.s2m and self.s2m_weight > 0:
                 import icp
-                icp_dist = icp.dist_icp(scan_tensor, 
-                                    body_model_output.vertices[:, np.where(vis > 0)[0], :])
-#                icp_dist = icp.dist_icp(body_model_output.vertices[:, np.where(vis > 0)[0], :], scan_tensor)
-                icp_dist = self.s2m_robustifier(icp_dist) #(icp_dist.sqrt())
-                icp_dist = self.s2m_weight * icp_dist.sum()
+                s2m_dist = icp.dist_icp(scan_tensor, 
+                                        body_model_output.vertices[:, np.where(vis > 0)[0], :])
+                s2m_dist = self.s2m_robustifier(s2m_dist) #(icp_dist.sqrt())
+                s2m_dist = self.s2m_weight * s2m_dist.sum()
+            
+            if self.m2s and self.m2s_weight > 0:
+                import icp
+                m2s_dist = icp.dist_icp(body_model_output.vertices[:, np.where(vis > 0)[0], :], scan_tensor)
+                m2s_dist = self.m2s_robustifier(m2s_dist) #(icp_dist.sqrt())
+                m2s_dist = self.m2s_weight * m2s_dist.sum()
 
 #            if self.s2m and self.s2m_weight > 0 and vis.sum() > 0:
 #                s2m_dist, _, _, _ = distChamfer(scan_tensor,
@@ -637,8 +642,8 @@ class SMPLifyLoss(nn.Module):
                       angle_prior_loss + pen_loss +
                       # jaw_prior_loss + expression_loss +
                       # left_hand_prior_loss + right_hand_prior_loss + 
-                      icp_dist 
-                      # m2s_dist + s2m_dist +
+                      #icp_dist 
+                      m2s_dist + s2m_dist 
                       # sdf_penetration_loss + contact_loss 
                       )
         print("total:{:.2f}".format(total_loss),
@@ -647,7 +652,8 @@ class SMPLifyLoss(nn.Module):
               " shape_loss:{:.2f}".format(shape_loss),
               " angle_prior_loss:{:.2f}".format(angle_prior_loss),
               " pen_loss:{:.2f}".format(pen_loss),
-              " icp_dist:{:.2f}".format(icp_dist)
+              " s2m_dist:{:.2f}".format(s2m_dist),
+              " m2s_dist:{:.2f}".format(m2s_dist)
               )
         if visualize:
             print('total:{:.2f}, joint_loss:{:0.2f},  s2m:{:0.2f}, m2s:{:0.2f}, penetration:{:0.2f}, contact:{:0.2f}'.
