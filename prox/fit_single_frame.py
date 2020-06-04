@@ -246,8 +246,11 @@ def fit_single_frame(img,
         joints_conf = joints_conf.to(device=device, dtype=dtype)
 
     scan_tensor = None
+    keypoints3d = None
     if scan is not None:
         scan_tensor = torch.tensor(scan.get('points'), device=device, dtype=dtype).unsqueeze(0)
+        keypoints3d = torch.tensor(scan.get('keypoints3d'), device=device, dtype=dtype).unsqueeze(0)
+    
 
     # load pre-computed signed distance field
     sdf = None
@@ -506,6 +509,7 @@ def fit_single_frame(img,
             use_vposer=use_vposer, vposer=vposer,
             pose_embedding=pose_embedding,
             scan_tensor=scan_tensor,
+            keypoints3d=keypoints3d,
             return_full_pose=False, return_verts=False)
 
         # Step 1: Optimize over the torso joints the camera translation
@@ -595,6 +599,7 @@ def fit_single_frame(img,
                     use_vposer=use_vposer, vposer=vposer,
                     pose_embedding=pose_embedding,
                     scan_tensor=scan_tensor,
+                    keypoints3d=keypoints3d,
                     scene_v=scene_v, scene_vn=scene_vn, scene_f=scene_f,ftov=ftov,
                     return_verts=True, return_full_pose=True)
 

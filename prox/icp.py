@@ -112,7 +112,7 @@ def nearest_neighbor(src, dst):
     distances, indices = neigh.kneighbors(src, return_distance=True)
     return distances.ravel(), indices.ravel()
 
-def dist_icp(src, dst, standard_deviation_range=0.0):
+def dist_icp(src, dst, standard_deviation_range=0.0, threshold=0.1):
     src1 = src.detach().numpy()
     dst1 = dst.detach().numpy()
     distances, indices = nearest_neighbor(src1[0, :,:], dst1[0, :,:])
@@ -122,10 +122,10 @@ def dist_icp(src, dst, standard_deviation_range=0.0):
     stde_error = np.std(distances)
 
     #Ignore distances that are outlers
+    trimmed_dst_indices = []
+    trimmed_src_indices = []
     if standard_deviation_range > 0.0:
-        trimmed_dst_indices = []
-        trimmed_src_indices = []
-        for j in xrange(len(indices)):
+        for j in range(len(indices)):
             if distances[j] > (mean_error + standard_deviation_range * stde_error):
                 continue
             if distances[j] < (mean_error - standard_deviation_range * stde_error):
@@ -134,10 +134,38 @@ def dist_icp(src, dst, standard_deviation_range=0.0):
             trimmed_src_indices.append(j)
         
         diff = src[:, trimmed_src_indices, :] - dst[:, trimmed_dst_indices, :]
+    elif threshold > 0.0:
+        for j, value in enumerate(indices):
+            if distances[j] > threshold:
+                continue
+            trimmed_dst_indices.append(value)
+            trimmed_src_indices.append(j)
+        
+        diff = src[:, trimmed_src_indices, :] - dst[:, trimmed_dst_indices, :]
     else:
         diff = src[:,:,:] - dst[:,indices,:]
         
     return diff #torch.sum(diff**2)
+
+def build_nearestneighbors_object(pointcloud):
+    print("build_nearestneighbors_object()")
+    neigh = NearestNeighbors(n_neighbors=1)
+    neigh.fit(pointcloud)
+    return neigh
+
+def calc_icp_distances(src, dst, dst_neigh=None, threshold=0.02):
+    src1 = src.detach().numpy()
+    dst1 = dst.detach().numpy()
+    if dst_neigh is None:
+        dst_neigh = build_nearestneighbors_object(dst1[0,:,:])
+    distances, indices = dst_neigh.kneighbors(src1[0,:,:], return_distance=True)
+    distances, indices = distances.ravel(), indices.ravel()
+    distances = np.asarray(distances)
+    indices = np.asarray(indices)
+    indices = indices[distances < threshold]
+    diff = src[:,:,:] - dst[:,indices,:]
+
+    return diff
 
 def unit_vector(vector):
     """ Returns the unit vector of the vector.  """

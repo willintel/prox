@@ -233,6 +233,7 @@ class OpenPose(Dataset):
             depth_im[depth_im > self.depth_max] = 0
             if self.flip:
                 depth_im = cv2.flip(depth_im, 1)
+        color_im = img
 
         mask = None
         if self.read_mask:
@@ -255,8 +256,17 @@ class OpenPose(Dataset):
         scan_dict = None
         init_trans = None
         if depth_im is not None and mask is not None:
-            scan_dict = self.projection.create_scan(mask, depth_im, mask_on_color=self.mask_on_color)
+            scan_dict = self.projection.create_scan(mask, depth_im, color_im=color_im, mask_on_color=self.mask_on_color, keypoints=keypoints)
             init_trans = np.mean(scan_dict.get('points'), axis=0)
+            keypoints3d = scan_dict.get('keypoints3d')
+            p = np.asarray([0.0, 0.0, 0.0], dtype=float)
+            count = 0.0
+            for i in range(keypoints3d.shape[0]):
+                if keypoints3d[i,2] <= 0.1:
+                    continue
+                p += keypoints3d[i,:]
+                count += 1.0
+            init_trans = p / count
 
         output_dict = {'fn': img_fn,
                        'img_path': img_path,
@@ -265,7 +275,7 @@ class OpenPose(Dataset):
                        'init_trans': init_trans,
                        'depth_im': depth_im,
                        'mask': mask,
-                       'scan_dict':scan_dict}
+                       'scan_dict': scan_dict}
         if keyp_tuple.gender_gt is not None:
             if len(keyp_tuple.gender_gt) > 0:
                 output_dict['gender_gt'] = keyp_tuple.gender_gt
