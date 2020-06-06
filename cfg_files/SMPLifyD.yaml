@@ -61,7 +61,7 @@ joints_to_ign:
 prior_folder: 'priors'
 result_folder: 'results'
 gender: "male"
-model_type: 'smplx'
+model_type: 'smpl'
 # Flag for using the GPU
 use_cuda: True
 float_dtype: "float32"

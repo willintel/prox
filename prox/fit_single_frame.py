@@ -469,7 +469,7 @@ def fit_single_frame(img,
         img = torch.tensor(img, dtype=dtype)
 
         H, W, _ = img.shape
-
+        print("camera_mode:", camera_mode, " init_t:", init_t)
         # Reset the parameters to estimate the initial translation of the
         # body model
         if camera_mode == 'moving':
@@ -496,8 +496,6 @@ def fit_single_frame(img,
                                    gt_joints[:, right_shoulder_idx])
         try_both_orient = shoulder_dist.item() < side_view_thsh
 
-
-
         camera_optimizer, camera_create_graph = optim_factory.create_optimizer(
             camera_opt_params,
             **kwargs)
@@ -512,6 +510,29 @@ def fit_single_frame(img,
             keypoints3d=keypoints3d,
             return_full_pose=False, return_verts=False)
 
+        def export_body_model(body_model, fn):
+            # return
+            try:
+                import trimesh
+                body_pose = vposer.decode(
+                    pose_embedding,
+                    output_type='aa').view(1, -1) if use_vposer else None
+                append_wrists = kwargs.get('model_type', 'smpl') == 'smpl' and use_vposer
+                if append_wrists:
+                        wrist_pose = torch.zeros([body_pose.shape[0], 6],
+                                                 dtype=body_pose.dtype,
+                                                 device=body_pose.device)
+                        body_pose = torch.cat([body_pose, wrist_pose], dim=1)
+        
+                model_output = body_model(return_verts=True, body_pose=body_pose)
+                vertices_np = model_output.vertices.detach().cpu().numpy().squeeze()
+                body = trimesh.Trimesh(vertices_np, body_model.faces, process=False)
+                body.export(fn)
+            finally: 
+                pass
+
+        export_body_model(body_model, "./body_model-cam_before.ply")
+
         # Step 1: Optimize over the torso joints the camera translation
         # Initialize the computational graph by feeding the initial translation
         # of the camera and the initial pose of the body model.
@@ -522,6 +543,10 @@ def fit_single_frame(img,
                                                 use_vposer=use_vposer,
                                                 pose_embedding=pose_embedding,
                                                 vposer=vposer)
+
+        # body_model.reset_params(transl=init_t)
+        
+        export_body_model(body_model, "./body_model-cam_after.ply")
 
         if interactive:
             if use_cuda and torch.cuda.is_available():
@@ -614,6 +639,7 @@ def fit_single_frame(img,
                     pose_embedding=pose_embedding, vposer=vposer,
                     use_vposer=use_vposer)
 
+                export_body_model(body_model, "./body_model-or_idx{}-opt_idx{}.ply".format(or_idx, opt_idx))
                 if interactive:
                     if use_cuda and torch.cuda.is_available():
                         torch.cuda.synchronize()
@@ -679,6 +705,7 @@ def fit_single_frame(img,
             print("vertices:", vertices.shape, " mesh_fn:", mesh_fn)
             out_mesh = trimesh.Trimesh(vertices, body_model.faces, process=False)
             out_mesh.export(mesh_fn)
+        
 
     if render_results:
         import pyrender

@@ -468,6 +468,7 @@ class SMPLifyLoss(nn.Module):
                    if self.use_joints_conf else
                    joint_weights).unsqueeze(dim=-1)
 
+        joint_loss = 0.0
         # Calculate the distance of the projected joints from
         # the ground truth 2D detections
         diff = gt_joints - projected_joints
@@ -662,7 +663,8 @@ class SMPLifyLoss(nn.Module):
         #     contact_dist = self.contact_robustifier(contact_dist[:, valid_contact_ids].sqrt())
         #     contact_loss = self.contact_loss_weight * contact_dist.mean()
 
-        total_loss = (joint_loss + joint3d_loss + 
+        total_loss = (#joint_loss + 
+                      joint3d_loss + 
                       pprior_loss + shape_loss +
                       angle_prior_loss + pen_loss +
                       # jaw_prior_loss + expression_loss +
@@ -726,7 +728,7 @@ class SMPLifyCameraInitLoss(nn.Module):
                                              device=weight_tensor.device)
                 setattr(self, key, weight_tensor)
 
-    def forward(self, body_model_output, camera, gt_joints, body_model,
+    def forward(self, body_model_output, camera, gt_joints, body_model, keypoints3d=None,
                 **kwargs):
         projected_joints = camera(body_model_output.joints)
 
@@ -736,17 +738,35 @@ class SMPLifyCameraInitLoss(nn.Module):
             2)
         joint_loss = torch.sum(joint_error) * self.data_weight ** 2
 
+
+        joint3d_loss = 0.0
+        if keypoints3d is not None:
+            diff = keypoints3d - body_model_output.joints
+            for i in range(keypoints3d.shape[1]):
+                if keypoints3d[0,i,2].numpy() <= 0.1:
+                    diff[0,i,:] = torch.tensor([0.0, 0.0, 0.0])
+            joint3d_diff = torch.pow(diff, 2)
+            joint3d_loss = (torch.sum(joint3d_diff) *
+                          self.data_weight ** 2) * 1000.0
+
         depth_loss = 0.0
-        if (self.depth_loss_weight.item() > 0 and self.trans_estimation is not
-                None):
-            if self.camera_mode == 'moving':
-                depth_loss = self.depth_loss_weight ** 2 * torch.sum((
-                                                                             camera.translation[:,
-                                                                             2] - self.trans_estimation[:, 2]).pow(2))
-            elif self.camera_mode == 'fixed':
-                depth_loss = self.depth_loss_weight ** 2 * torch.sum((
-                    body_model.transl[:, 2] - self.trans_estimation[:, 2]).pow(2))
+        # if (self.depth_loss_weight.item() > 0 and self.trans_estimation is not
+        #         None):
+        #     if self.camera_mode == 'moving':
+        #         depth_loss = self.depth_loss_weight ** 2 * torch.sum((
+        #                                                                      camera.translation[:,
+        #                                                                      2] - self.trans_estimation[:, 2]).pow(2))
+        #     elif self.camera_mode == 'fixed':
+        #         depth_loss = self.depth_loss_weight ** 2 * torch.sum((
+        #             body_model.transl[:, 2] - self.trans_estimation[:, 2]).pow(2))
 
+        total_loss = (#joint_loss + 
+                     joint3d_loss + 
+                     depth_loss)
+        print("total:{:.2f}".format(total_loss),
+              " joint_loss:{:.2f}".format(joint_loss),
+              " joint3d_loss:{:.2f}".format(joint3d_loss),
+              " depth_loss:{:.2f}".format(depth_loss)
+              )
 
-
-        return joint_loss + depth_loss
+        return total_loss

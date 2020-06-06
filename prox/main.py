@@ -152,7 +152,7 @@ def main(**args):
     camera_center = None \
         if args.get('camera_center_x') is None or args.get('camera_center_y') is None \
         else torch.tensor([args.get('camera_center_x'), args.get('camera_center_y')], dtype=dtype).view(-1, 2)
-    print("args.get('focal_length_x'):", args.get('focal_length_x'))
+    # print("args.get('focal_length_x'):", args.get('focal_length_x'))
     camera = create_camera(focal_length_x=args.get('focal_length_x'),
                            focal_length_y=args.get('focal_length_y'),
                            center= camera_center,
@@ -240,6 +240,7 @@ def main(**args):
         init_trans = None if data['init_trans'] is None else torch.tensor(data['init_trans'], dtype=dtype).view(-1,3)
         scan = data['scan_dict']
         print('Processing: {}'.format(data['img_path']))
+        print("init_trans:", init_trans)
 
         curr_result_folder = osp.join(result_folder, fn)
         if not osp.exists(curr_result_folder):
@@ -304,6 +305,7 @@ def main(**args):
                              jaw_prior=jaw_prior,
                              angle_prior=angle_prior,
                              **args)
+        break
 
     elapsed = time.time() - start
     time_msg = time.strftime('%H hours, %M minutes, %S seconds',
@@ -336,22 +338,22 @@ if __name__ == "__main__":
     FIT_DATA_FOLDER = "/media/psf/WVerbatim/data/mevolve/inhome-test-rig/2020_05_21/d435-dynamic-human_4shot-21_08_33/snapshots/fit-data"
     
     print("FIT_DATA_FOLDER:", FIT_DATA_FOLDER)
-    argv = [
-#        "python3", os.path.join(PROX_SRC_PATH, "prox", "main.py"),
-      "--config", os.path.join(PROX_SRC_PATH,"cfg_files", "SMPLifyD-d435.yaml"),
-      # "--config", os.path.join(PROX_SRC_PATH,"cfg_files", "RGB-d435.yaml"),
-#        "--config", SCRIPT_PATH+"/../cfg_files/RGB.yaml",
-      "--recording_dir", FIT_DATA_FOLDER,
-      "--output_folder", os.path.join(FIT_DATA_FOLDER, "prox"),
-      "--vposer_ckpt", MODELS_FOLDER + "/models/vposer_v1_0/",
-      "--part_segm_fn", MODELS_FOLDER + "/models/smplx_parts_segm.pkl",
-      "--model_folder", MODELS_FOLDER + "/models",
-      "--use_cuda", "0",
-      "--interpenetration", "0",
-      "--save_meshes", "1",
-      "--render_results", "0",
-      # "--camera_center_x", 
-      ]
+#     argv = [
+# #        "python3", os.path.join(PROX_SRC_PATH, "prox", "main.py"),
+#       "--config", os.path.join(PROX_SRC_PATH,"cfg_files", "SMPLifyD-d435.yaml"),
+#       # "--config", os.path.join(PROX_SRC_PATH,"cfg_files", "RGB-d435.yaml"),
+# #        "--config", SCRIPT_PATH+"/../cfg_files/RGB.yaml",
+#       "--recording_dir", FIT_DATA_FOLDER,
+#       "--output_folder", os.path.join(FIT_DATA_FOLDER, "prox"),
+#       "--vposer_ckpt", MODELS_FOLDER + "/models/vposer_v1_0/",
+#       "--part_segm_fn", MODELS_FOLDER + "/models/smplx_parts_segm.pkl",
+#       "--model_folder", MODELS_FOLDER + "/models",
+#       "--use_cuda", "0",
+#       "--interpenetration", "0",
+#       "--save_meshes", "1",
+#       "--render_results", "0",
+#       # "--camera_center_x", 
+#       ]
     
 #    argv=None
     args = parse_config(argv)

@@ -242,21 +242,21 @@ class OpenPose(Dataset):
             elif osp.exists(os.path.join(self.mask_folder, img_fn + '.png')):
                 mask = cv2.imread(os.path.join(self.mask_folder, img_fn + '.png'), cv2.IMREAD_GRAYSCALE)
                 mask = cv2.threshold(mask, 254, 255, cv2.THRESH_BINARY)[1]
-            else:
-                mask = np.ones(depth_im.shape, dtype=np.uint8)
-                mask[depth_im > 0.3]= 0
-                mask[depth_im < 2.0] = 0
+            # else:
+            #     mask = np.ones(depth_im.shape, dtype=np.uint8)
+            #     mask[depth_im > 0.3]= 0
+            #     mask[depth_im < 2.0] = 0
             if self.flip:
                 mask = cv2.flip(mask, 1)
-        elif depth_im is not None:
-            mask = np.ones(depth_im.shape, dtype=np.uint8)
-            mask[depth_im > 0.3]= 0
-            mask[depth_im < 2.0] = 0
+        # elif depth_im is not None:
+        #     mask = np.ones(depth_im.shape, dtype=np.uint8)
+        #     mask[depth_im > 0.3]= 0
+        #     mask[depth_im < 2.0] = 0
 
         scan_dict = None
         init_trans = None
-        if depth_im is not None and mask is not None:
-            scan_dict = self.projection.create_scan(mask, depth_im, color_im=color_im, mask_on_color=self.mask_on_color, keypoints=keypoints)
+        if depth_im is not None: # and mask is not None:
+            scan_dict = self.projection.create_scan(mask=mask, depth_im=depth_im, color_im=color_im, mask_on_color=self.mask_on_color, keypoints=keypoints)
             init_trans = np.mean(scan_dict.get('points'), axis=0)
             keypoints3d = scan_dict.get('keypoints3d')
             p = np.asarray([0.0, 0.0, 0.0], dtype=float)
@@ -267,6 +267,7 @@ class OpenPose(Dataset):
                 p += keypoints3d[i,:]
                 count += 1.0
             init_trans = p / count
+            # init_trans[2] += 1.0
 
         output_dict = {'fn': img_fn,
                        'img_path': img_path,
@@ -291,6 +292,10 @@ class OpenPose(Dataset):
         if scan_dict is not None:
             m = trimesh.Trimesh(scan_dict['points'], None, process=False)
             m.export(os.path.join(depth_output, img_fn+".ply"))
+            m = trimesh.Trimesh(scan_dict['keypoints3d'], None, process=False)
+            m.export(os.path.join(depth_output, img_fn+"_keypoints3d.ply"))
+            
+
         return output_dict
 
     def __iter__(self):
