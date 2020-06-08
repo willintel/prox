@@ -213,6 +213,7 @@ class OpenPose(Dataset):
         img = cv2.imread(img_path).astype(np.float32)[:, :, ::-1] / 255.0
         if self.flip:
             img = cv2.flip(img, 1)
+        color_im = img.copy()
         img_fn = osp.split(img_path)[1]
         img_fn, _ = osp.splitext(osp.split(img_path)[1])
 
@@ -255,7 +256,7 @@ class OpenPose(Dataset):
         scan_dict = None
         init_trans = None
         if depth_im is not None and mask is not None:
-            scan_dict = self.projection.create_scan(mask, depth_im, mask_on_color=self.mask_on_color)
+            scan_dict = self.projection.create_scan(mask, depth_im, color_im=color_im, mask_on_color=self.mask_on_color, keypoints=keypoints)
             init_trans = np.mean(scan_dict.get('points'), axis=0)
 
         output_dict = {'fn': img_fn,
@@ -279,8 +280,13 @@ class OpenPose(Dataset):
         import trimesh
         
         if scan_dict is not None:
-            m = trimesh.Trimesh(scan_dict['points'], None, process=False)
-            m.export(os.path.join(depth_output, img_fn+".ply"))
+            if 'points' in scan_dict.keys():
+                m = trimesh.Trimesh(scan_dict['points'], None, process=False)
+                m.export(os.path.join(depth_output, img_fn+".ply"))
+
+            if 'keypoints3d' in scan_dict.keys():
+                m = trimesh.Trimesh(scan_dict['keypoints3d'], None, process=False)
+                m.export(os.path.join(depth_output, img_fn+"_keypoints.ply"))
         return output_dict
 
     def __iter__(self):

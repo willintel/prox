@@ -55,11 +55,40 @@ class Projection():
 
         return xyz.reshape((depth_image.shape[0], depth_image.shape[1], -1))
 
+    def get_valid_value(self, uv, image, radius_factors=[1, 2, 4, 6, 8]):
+        directions = [
+                        [0, 0],
+                        [0, 1],
+                        [-1, 1],
+                        [-1, 0],
+                        [-1, -1],
+                        [-1, 0],
+                        [1, -1],
+                        [1, 0],
+                        [1, 1]
+                     ]
+        w = image.shape[1]
+        h = image.shape[0]
+        result = None
+        for factor in radius_factors:
+            for d in directions:
+                x = int(uv[0]) + d[0]*factor
+                y = int(uv[1]) + d[1]*factor
+                if x <= 0 or x >= w or y <= 0 or y >= h:
+                    continue
+                value = image[y, x]
+                if value <= 0.1:
+                    continue
+                result = value
+                break
+        return result
+    
+    
     def projectPoints(self, v, cam):
         v = v.reshape((-1,3)).copy()
         return cv2.projectPoints(v, np.asarray(cam['R']), np.asarray(cam['T']), np.asarray(cam['camera_mtx']), np.asarray(cam['k']))[0].squeeze()
 
-    def create_scan(self, mask, depth_im, color_im=None, mask_on_color=False, coord='color', TH=1e-2, default_color=[1.00, 0.75, 0.80]):
+    def create_scan(self, mask, depth_im, color_im=None, mask_on_color=False, coord='color', TH=1e-2, default_color=[1.00, 0.75, 0.80], keypoints=None):
         if not mask_on_color:
             depth_im[mask != 0] = 0
         if depth_im.size == 0:
@@ -73,6 +102,22 @@ class Projection():
         valid_x = np.logical_and(uvs[:, 1] >= 0, uvs[:, 1] < 1080)
         valid_y = np.logical_and(uvs[:, 0] >= 0, uvs[:, 0] < 1920)
         valid_idx = np.logical_and(valid_x, valid_y)
+        keypoints3d = []
+        if color_im is not None and keypoints is not None:
+            oncolor_index_im = np.zeros(color_im.shape[:2], dtype=int)
+            for i, v in enumerate(valid_idx):
+                if v == False: 
+                    continue
+                uv = uvs[i]
+                oncolor_index_im[uv[1], uv[0]] = i
+            kps = np.round(keypoints[0].copy()).astype(int)
+            keypoints3d = np.zeros(kps.shape)
+            for i,uv in enumerate(kps):
+                value = self.get_valid_value(uv, oncolor_index_im)
+                if value is None:
+                    continue
+                keypoints3d[i] = points[value, :]
+            
         if mask_on_color:
             valid_mask_idx = valid_idx.copy()
             valid_mask_idx[valid_mask_idx == True] = mask[uvs[valid_idx == True][:, 1], uvs[valid_idx == True][:,
@@ -96,7 +141,7 @@ class Projection():
             points = np.dot(T, stacked.T).T[:, :3]
             points = np.ascontiguousarray(points)
         ind = points[:, 2] > TH
-        return {'points':points[ind], 'colors':colors[ind]}
+        return {'points':points[ind], 'colors':colors[ind], 'keypoints3d': keypoints3d}
 
 
     def align_color2depth(self, depth_im, color_im, interpolate=True):
