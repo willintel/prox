@@ -479,7 +479,7 @@ class SMPLifyLoss(nn.Module):
                     diff[0,i,:] = torch.tensor([0.0, 0.0, 0.0])
             joint3d_diff = self.robustifier(diff)
             joint3d_loss = (torch.sum(weights ** 2 * joint3d_diff) *
-                          self.data_weight ** 2) * 1000.0
+                          self.data_weight ** 2) * 1.e5
 
         # Calculate the loss from the Pose prior
         if use_vposer:
@@ -500,50 +500,50 @@ class SMPLifyLoss(nn.Module):
 
         # Apply the prior on the pose space of the hand
         left_hand_prior_loss, right_hand_prior_loss = 0.0, 0.0
-        if self.use_hands and self.left_hand_prior is not None:
-            left_hand_prior_loss = torch.sum(
-                self.left_hand_prior(
-                    body_model_output.left_hand_pose)) * \
-                self.hand_prior_weight ** 2
+        # if self.use_hands and self.left_hand_prior is not None:
+        #     left_hand_prior_loss = torch.sum(
+        #         self.left_hand_prior(
+        #             body_model_output.left_hand_pose)) * \
+        #         self.hand_prior_weight ** 2
 
-        if self.use_hands and self.right_hand_prior is not None:
-            right_hand_prior_loss = torch.sum(
-                self.right_hand_prior(
-                    body_model_output.right_hand_pose)) * \
-                self.hand_prior_weight ** 2
+        # if self.use_hands and self.right_hand_prior is not None:
+        #     right_hand_prior_loss = torch.sum(
+        #         self.right_hand_prior(
+        #             body_model_output.right_hand_pose)) * \
+        #         self.hand_prior_weight ** 2
 
         expression_loss = 0.0
         jaw_prior_loss = 0.0
-        if self.use_face:
-            expression_loss = torch.sum(self.expr_prior(
-                body_model_output.expression)) * \
-                self.expr_prior_weight ** 2
+        # if self.use_face:
+        #     expression_loss = torch.sum(self.expr_prior(
+        #         body_model_output.expression)) * \
+        #         self.expr_prior_weight ** 2
 
-            if hasattr(self, 'jaw_prior'):
-                jaw_prior_loss = torch.sum(
-                    self.jaw_prior(
-                        body_model_output.jaw_pose.mul(
-                            self.jaw_prior_weight)))
+        #     if hasattr(self, 'jaw_prior'):
+        #         jaw_prior_loss = torch.sum(
+        #             self.jaw_prior(
+        #                 body_model_output.jaw_pose.mul(
+        #                     self.jaw_prior_weight)))
 
         pen_loss = 0.0
         # Calculate the loss due to interpenetration
-        if (self.interpenetration and self.coll_loss_weight.item() > 0):
-            batch_size = projected_joints.shape[0]
-            triangles = torch.index_select(
-                body_model_output.vertices, 1,
-                body_model_faces).view(batch_size, -1, 3, 3)
+        # if (self.interpenetration and self.coll_loss_weight.item() > 0):
+        #     batch_size = projected_joints.shape[0]
+        #     triangles = torch.index_select(
+        #         body_model_output.vertices, 1,
+        #         body_model_faces).view(batch_size, -1, 3, 3)
 
-            with torch.no_grad():
-                collision_idxs = self.search_tree(triangles)
+        #     with torch.no_grad():
+        #         collision_idxs = self.search_tree(triangles)
 
-            # Remove unwanted collisions
-            if self.tri_filtering_module is not None:
-                collision_idxs = self.tri_filtering_module(collision_idxs)
+        #     # Remove unwanted collisions
+        #     if self.tri_filtering_module is not None:
+        #         collision_idxs = self.tri_filtering_module(collision_idxs)
 
-            if collision_idxs.ge(0).sum().item() > 0:
-                pen_loss = torch.sum(
-                    self.coll_loss_weight *
-                    self.pen_distance(triangles, collision_idxs))
+        #     if collision_idxs.ge(0).sum().item() > 0:
+        #         pen_loss = torch.sum(
+        #             self.coll_loss_weight *
+        #             self.pen_distance(triangles, collision_idxs))
         icp_dist = 0.0
         s2m_dist = 0.0
         m2s_dist = 0.0
@@ -684,7 +684,7 @@ class SMPLifyCameraInitLoss(nn.Module):
     def __init__(self, init_joints_idxs, trans_estimation=None,
                  reduction='sum',
                  data_weight=1.0,
-                 depth_loss_weight=1e2,
+                 depth_loss_weight=1e5,
                  camera_mode='moving',
                  dtype=torch.float32,
                  **kwargs):
@@ -730,16 +730,11 @@ class SMPLifyCameraInitLoss(nn.Module):
 
         joint3d_loss = 0.0
         if keypoints3d is not None:
-#             diff = keypoints3d - body_model_output.joints
-#             for i in range(keypoints3d.shape[1]):
-#                 if keypoints3d[0,i,2].numpy() <= 0.1:
-#                     diff[0,i,:] = torch.tensor([0.0, 0.0, 0.0])
              joint3d_diff = torch.pow(
                      torch.index_select(keypoints3d, 1, self.init_joints_idxs) -
                      torch.index_select(body_model_output.joints, 1, self.init_joints_idxs), 2)
              joint3d_loss = (torch.sum(joint3d_diff) *
-                           self.data_weight ** 2) * 1000.0
-#        joint3d_loss = 0.0
+                           self.data_weight ** 2) * 1e6
 
         depth_loss = 0.0
         if (self.depth_loss_weight.item() > 0 and self.trans_estimation is not
@@ -751,6 +746,8 @@ class SMPLifyCameraInitLoss(nn.Module):
             elif self.camera_mode == 'fixed':
                 depth_loss = self.depth_loss_weight ** 2 * torch.sum((
                     body_model.transl[:, 2] - self.trans_estimation[:, 2]).pow(2))
+            print("trans_estimation:", self.trans_estimation, 
+                  "  trans:", body_model.transl)
 
         total_loss = (joint_loss + 
                      joint3d_loss + 
