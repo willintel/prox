@@ -453,7 +453,7 @@ class SMPLifyLoss(nn.Module):
     def forward(self, body_model_output, camera, gt_joints, joints_conf,
                 body_model_faces, joint_weights,
                 use_vposer=False, pose_embedding=None,
-                scan_tensor=None, visualize=False,
+                scan_tensor=None, keypoints3d=None, visualize=False,
                 scene_v=None, scene_vn=None, scene_f=None,ftov=None,
                 **kwargs):
         projected_joints = camera(body_model_output.joints)
@@ -465,8 +465,21 @@ class SMPLifyLoss(nn.Module):
         # Calculate the distance of the projected joints from
         # the ground truth 2D detections
         joint_diff = self.robustifier(gt_joints - projected_joints)
+        for i in range(gt_joints.shape[1]):
+            if gt_joints[0,i,0].numpy() == 0.0 or gt_joints[0,i,1].numpy() == 0.0:
+                joint_diff[0,i,:] = torch.tensor([0.0, 0.0])
         joint_loss = (torch.sum(weights ** 2 * joint_diff) *
                       self.data_weight ** 2)
+
+        joint3d_loss = 0.0
+        if keypoints3d is not None:
+            diff = keypoints3d - body_model_output.joints
+            for i in range(keypoints3d.shape[1]):
+                if keypoints3d[0,i,2].numpy() <= 0.1:
+                    diff[0,i,:] = torch.tensor([0.0, 0.0, 0.0])
+            joint3d_diff = self.robustifier(diff)
+            joint3d_loss = (torch.sum(weights ** 2 * joint3d_diff) *
+                          self.data_weight ** 2) * 1000.0
 
         # Calculate the loss from the Pose prior
         if use_vposer:
@@ -638,7 +651,9 @@ class SMPLifyLoss(nn.Module):
         #     contact_dist = self.contact_robustifier(contact_dist[:, valid_contact_ids].sqrt())
         #     contact_loss = self.contact_loss_weight * contact_dist.mean()
 
-        total_loss = (joint_loss + pprior_loss + shape_loss +
+        total_loss = (joint_loss + 
+                      joint3d_loss +
+                      pprior_loss + shape_loss +
                       angle_prior_loss + pen_loss +
                       # jaw_prior_loss + expression_loss +
                       # left_hand_prior_loss + right_hand_prior_loss + 
@@ -648,6 +663,7 @@ class SMPLifyLoss(nn.Module):
                       )
         print("total:{:.2f}".format(total_loss),
               " joint_loss:{:.2f}".format(joint_loss),
+              " joint3d_loss:{:.2f}".format(joint3d_loss),
               " pprior_loss:{:.2f}".format(pprior_loss),
               " shape_loss:{:.2f}".format(shape_loss),
               " angle_prior_loss:{:.2f}".format(angle_prior_loss),
