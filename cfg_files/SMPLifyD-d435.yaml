@@ -25,9 +25,9 @@ rho_m2s: 5e-1
 m2s_weights:
     - 0.0
     - 0.0
-    - 1e2
-    - 5e2
-    - 5e2
+    - 0.0
+    - 1e3
+    - 1e3
 
 s2m: False
 rho_s2m: 2e-1
@@ -35,8 +35,8 @@ s2m_weights:
     - 0.0
     - 0.0
     - 1e2
-    - 5e2
-    - 5e2
+    - 1e3
+    - 1e3
 
 trans_opt_stages:
     - 2

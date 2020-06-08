@@ -55,7 +55,7 @@ class Projection():
 
         return xyz.reshape((depth_image.shape[0], depth_image.shape[1], -1))
 
-    def get_valid_value(self, uv, image, radius_factors=[1, 2, 4, 6, 8]):
+    def get_valid_value(self, uv, image, radius_factors=range(1,8)):
         directions = [
                         [0, 0],
                         [0, 1],
@@ -138,6 +138,7 @@ class Projection():
         valid_idx = np.logical_and(valid_x, valid_y)
         keypoints3d = []
         kp_uvs = []
+        kp_ids = []
         if color_im is not None and keypoints is not None:
             oncolor_index_im = np.zeros(color_im.shape[:2], dtype=int)
             for i, v in enumerate(valid_idx):
@@ -148,15 +149,22 @@ class Projection():
             kps = np.round(keypoints[0].copy()).astype(int)
             keypoints3d = np.zeros(kps.shape)
             for i,uv in enumerate(kps):
+                if i in [19, 20, 21, 22, 23, 24]: # skip ankles
+                    continue
                 if kps[i][2] <= 0:
                     continue
                 value = self.get_valid_value(uv, oncolor_index_im)
                 if value is None:
                     continue
                 keypoints3d[i] = points[value, :]
-                keypoints3d[i][2] += 0.05 # adding 5cm depth
+                kp_ids.append(i)
+                # checking not in face area
+                if i not in [0, 15, 16, 17, 18]:
+                    keypoints3d[i][2] += 0.05 # adding 5cm depth
                 kp_uvs.append(uv)
-            
+        print("kp_ids:", kp_ids)
+        print("keypoints3d:", keypoints3d)
+        print("kps:", kps)
             
         if mask_on_color:
             valid_mask_idx = valid_idx.copy()
