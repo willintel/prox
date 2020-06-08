@@ -89,7 +89,41 @@ class Projection():
         return cv2.projectPoints(v, np.asarray(cam['R']), np.asarray(cam['T']), np.asarray(cam['camera_mtx']), np.asarray(cam['k']))[0].squeeze()
 
     def create_scan(self, mask, depth_im, color_im=None, mask_on_color=False, coord='color', TH=1e-2, default_color=[1.00, 0.75, 0.80], keypoints=None):
-        if not mask_on_color:
+        # creating mask from bounding box of keypoints 
+        if color_im is not None and keypoints is not None :
+            min_x = 1.e6
+            min_y = 1.e6
+            max_x = 0
+            max_y = 0
+
+            kps = np.round(keypoints[0].copy()).astype(int)
+            for kp in kps:
+                if kp[2] <= 0:
+                    continue
+                min_x = min(kp[0], min_x)
+                max_x = max(kp[0], max_x)
+                min_y = min(kp[1], min_y)
+                max_y = max(kp[1], max_y)
+            margin = 20
+            min_x = max(min_x-margin, 0)
+            min_y = max(min_y-margin, 0)
+            max_x = min(max_x+margin, color_im.shape[1])
+            max_y = min(max_y+margin, color_im.shape[0])
+        else:
+            min_x = 0
+            min_y = 0
+            max_x = color_im.shape[1]
+            max_y = color_im.shape[0]
+            
+#        roi_mask = np.ones(color_im.shape, dtype=np.uint8)*255
+#        roi_mask[min_y:max_y, min_x:max_x] = 0
+#
+#        cv2.imshow("color_im", color_im)
+#        cv2.imshow("roi_mask", roi_mask)
+#        cv2.waitKey()
+    
+
+        if not mask_on_color and mask is not None:
             depth_im[mask != 0] = 0
         if depth_im.size == 0:
             return {'v': []}
@@ -99,10 +133,11 @@ class Projection():
 
         uvs = self.projectPoints(points, self.color_cam)
         uvs = np.round(uvs).astype(int)
-        valid_x = np.logical_and(uvs[:, 1] >= 0, uvs[:, 1] < 1080)
-        valid_y = np.logical_and(uvs[:, 0] >= 0, uvs[:, 0] < 1920)
+        valid_x = np.logical_and(uvs[:, 1] >= min_y, uvs[:, 1] < max_y)
+        valid_y = np.logical_and(uvs[:, 0] >= min_x, uvs[:, 0] < max_x)
         valid_idx = np.logical_and(valid_x, valid_y)
         keypoints3d = []
+        kp_uvs = []
         if color_im is not None and keypoints is not None:
             oncolor_index_im = np.zeros(color_im.shape[:2], dtype=int)
             for i, v in enumerate(valid_idx):
@@ -113,10 +148,15 @@ class Projection():
             kps = np.round(keypoints[0].copy()).astype(int)
             keypoints3d = np.zeros(kps.shape)
             for i,uv in enumerate(kps):
+                if kps[i][2] <= 0:
+                    continue
                 value = self.get_valid_value(uv, oncolor_index_im)
                 if value is None:
                     continue
                 keypoints3d[i] = points[value, :]
+                keypoints3d[i][2] += 0.05 # adding 5cm depth
+                kp_uvs.append(uv)
+            
             
         if mask_on_color:
             valid_mask_idx = valid_idx.copy()
@@ -133,6 +173,8 @@ class Projection():
             uvs = uvs[valid_idx == True]
             if color_im is not None:
                 colors[valid_idx == True,:3] = color_im[uvs[:, 1], uvs[:, 0]]/255.0
+            points = points[valid_idx]
+            colors = colors[valid_idx]
 
         if coord == 'color':
             # Transform to color camera coord
