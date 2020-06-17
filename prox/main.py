@@ -331,11 +331,12 @@ if __name__ == "__main__":
         # "--camera_center_x", 
         ]
     
-    MODELS_FOLDER="/media/psf/WVerbatim/data/mevolve/prox"
+    MODELS_FOLDER="/media/psf/Home/data/mevolve/prox"
     PROX_SRC_PATH = "/home/william/dev/thirdparty/prox"
 #    FIT_DATA_FOLDER = fdata.get_root_folder()
 #    print("FIT_DATA_FOLDER:", FIT_DATA_FOLDER)
-    FIT_DATA_FOLDER = "/media/psf/WVerbatim/data/mevolve/inhome-test-rig/2020_05_21/d435-dynamic-human_4shot-21_08_33/snapshots/fit-data"
+    FIT_DATA_FOLDER = "/media/psf/Home/data/mevolve/inhome-test-rig/2020_05_21/d435-dynamic-human_4shot-21_08_33/snapshots/fit-data"
+    FIT_DATA_FOLDER = "/media/psf/Home/data/mevolve/inhome-test-rig/2020_06_16/d455-dynamic-human-4shot-00_35_05/016122250304/snapshots/fit-data"
     argv = [
 #        "python3", os.path.join(PROX_SRC_PATH, "prox", "main.py"),
        "--config", os.path.join(PROX_SRC_PATH,"cfg_files", "SMPLifyD-d435.yaml"),

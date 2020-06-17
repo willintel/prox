@@ -114,13 +114,16 @@ class Projection():
             min_y = 0
             max_x = color_im.shape[1]
             max_y = color_im.shape[0]
-            
-#        roi_mask = np.ones(color_im.shape, dtype=np.uint8)*255
-#        roi_mask[min_y:max_y, min_x:max_x] = 0
-#
-#        cv2.imshow("color_im", color_im)
-#        cv2.imshow("roi_mask", roi_mask)
-#        cv2.waitKey()
+        
+        if False:
+            roi_mask = np.ones(color_im.shape, dtype=np.uint8)*255
+            roi_mask[min_y:max_y, min_x:max_x] = 0
+
+            print("keypoints:", keypoints)
+            print("min_x:", min_x, " max_x:", max_x, " min_y:", min_y, " max_y:", max_y)
+            cv2.imshow("color_im", color_im)
+            cv2.imshow("roi_mask", roi_mask)
+            cv2.waitKey()
     
 
         if not mask_on_color and mask is not None:
