@@ -112,7 +112,7 @@ def nearest_neighbor(src, dst):
     distances, indices = neigh.kneighbors(src, return_distance=True)
     return distances.ravel(), indices.ravel()
 
-def dist_icp(src, dst, standard_deviation_range=0.8, threshold=0.05):
+def dist_icp(src, dst, standard_deviation_range=0.9, threshold=0.05):
     src1 = src.detach().numpy()
     dst1 = dst.detach().numpy()
     distances, indices = nearest_neighbor(src1[0, :,:], dst1[0, :,:])

@@ -480,7 +480,7 @@ class SMPLifyLoss(nn.Module):
                 # diff[0,i,2] = torch.tensor(0.0)
             joint3d_diff = self.robustifier(diff)
             joint3d_loss = (torch.sum(weights ** 2 * joint3d_diff) *
-                          self.data_weight ** 2) * 7.e5
+                          self.data_weight ** 2) * 2.e4
             # print("joint3d_diff:", joint3d_diff[0])
 
         # Calculate the loss from the Pose prior
