@@ -154,16 +154,19 @@ class Projection():
             for i,uv in enumerate(kps):
                 if i in [19, 20, 21, 22, 23, 24]: # skip ankles
                     continue
-                if kps[i][2] <= 0:
+                if kps[i][2] <= 0.1:
                     continue
                 value = self.get_valid_value(uv, oncolor_index_im)
                 if value is None:
+                    continue
+                if points[value, 2] <= 0.1:
                     continue
                 keypoints3d[i] = points[value, :]
                 kp_ids.append(i)
                 # checking not in face area
                 if i not in [0, 15, 16, 17, 18]:
-                    keypoints3d[i][2] += 0.05 # adding 5cm depth
+                    keypoints3d[i] *= 1.05 # adding depth
+                    #keypoints3d[i][2] += 0.05 # adding 5cm depth
                 kp_uvs.append(uv)
         print("kp_ids:", kp_ids)
         print("keypoints3d:", keypoints3d)

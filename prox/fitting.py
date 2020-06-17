@@ -469,14 +469,15 @@ class SMPLifyLoss(nn.Module):
             if gt_joints[0,i,0].numpy() == 0.0 or gt_joints[0,i,1].numpy() == 0.0:
                 joint_diff[0,i,:] = torch.tensor([0.0, 0.0])
         joint_loss = (torch.sum(weights ** 2 * joint_diff) *
-                      self.data_weight ** 2) * 0.1
+                      self.data_weight ** 2) * 0.07
 
         joint3d_loss = 0.0
         if keypoints3d is not None:
             diff = keypoints3d - body_model_output.joints
             for i in range(keypoints3d.shape[1]):
-                if keypoints3d[0,i,2].numpy() <= 0.1:
+                if keypoints3d[0,i,2].numpy() <= 0.5:
                     diff[0,i,:] = torch.tensor([0.0, 0.0, 0.0])
+                # diff[0,i,2] = torch.tensor(0.0)
             joint3d_diff = self.robustifier(diff)
             joint3d_loss = (torch.sum(weights ** 2 * joint3d_diff) *
                           self.data_weight ** 2) * 1.e5
@@ -499,52 +500,6 @@ class SMPLifyLoss(nn.Module):
         angle_prior_loss = torch.sum(
             self.angle_prior(body_pose)) * self.bending_prior_weight #** 2
 
-        # Apply the prior on the pose space of the hand
-        left_hand_prior_loss, right_hand_prior_loss = 0.0, 0.0
-        # if self.use_hands and self.left_hand_prior is not None:
-        #     left_hand_prior_loss = torch.sum(
-        #         self.left_hand_prior(
-        #             body_model_output.left_hand_pose)) * \
-        #         self.hand_prior_weight ** 2
-
-        # if self.use_hands and self.right_hand_prior is not None:
-        #     right_hand_prior_loss = torch.sum(
-        #         self.right_hand_prior(
-        #             body_model_output.right_hand_pose)) * \
-        #         self.hand_prior_weight ** 2
-
-        expression_loss = 0.0
-        jaw_prior_loss = 0.0
-        # if self.use_face:
-        #     expression_loss = torch.sum(self.expr_prior(
-        #         body_model_output.expression)) * \
-        #         self.expr_prior_weight ** 2
-
-        #     if hasattr(self, 'jaw_prior'):
-        #         jaw_prior_loss = torch.sum(
-        #             self.jaw_prior(
-        #                 body_model_output.jaw_pose.mul(
-        #                     self.jaw_prior_weight)))
-
-        pen_loss = 0.0
-        # Calculate the loss due to interpenetration
-        # if (self.interpenetration and self.coll_loss_weight.item() > 0):
-        #     batch_size = projected_joints.shape[0]
-        #     triangles = torch.index_select(
-        #         body_model_output.vertices, 1,
-        #         body_model_faces).view(batch_size, -1, 3, 3)
-
-        #     with torch.no_grad():
-        #         collision_idxs = self.search_tree(triangles)
-
-        #     # Remove unwanted collisions
-        #     if self.tri_filtering_module is not None:
-        #         collision_idxs = self.tri_filtering_module(collision_idxs)
-
-        #     if collision_idxs.ge(0).sum().item() > 0:
-        #         pen_loss = torch.sum(
-        #             self.coll_loss_weight *
-        #             self.pen_distance(triangles, collision_idxs))
         icp_dist = 0.0
         s2m_dist = 0.0
         m2s_dist = 0.0
@@ -590,77 +545,11 @@ class SMPLifyLoss(nn.Module):
             vertices = self.R.mm(vertices.t()).t() + self.t.repeat([nv, 1])
             vertices.unsqueeze_(0)
 
-        # Compute scene penetration using signed distance field (SDF)
-        sdf_penetration_loss = 0.0
-        # if self.sdf_penetration and self.sdf_penetration_weight > 0:
-        #     grid_dim = self.sdf.shape[0]
-        #     sdf_ids = torch.round(
-        #        (vertices.squeeze() - self.grid_min) / self.voxel_size).to(dtype=torch.long)
-        #     sdf_ids.clamp_(min=0, max=grid_dim-1)
-
-        #     norm_vertices = (vertices - self.grid_min) / (self.grid_max - self.grid_min) * 2 - 1
-        #     body_sdf = F.grid_sample(self.sdf.view(1, 1, grid_dim, grid_dim, grid_dim),
-        #                              norm_vertices[:, :, [2, 1, 0]].view(1, nv, 1, 1, 3),
-        #                              padding_mode='border')
-        #     sdf_normals = self.sdf_normals[sdf_ids[:,0], sdf_ids[:,1], sdf_ids[:,2]]
-        #     # if there are no penetrating vertices then set sdf_penetration_loss = 0
-        #     if body_sdf.lt(0).sum().item() < 1:
-        #         sdf_penetration_loss = torch.tensor(0.0, dtype=joint_loss.dtype, device=joint_loss.device)
-        #     else:
-        #         sdf_penetration_loss = self.sdf_penetration_weight * (body_sdf[body_sdf < 0].unsqueeze(dim=-1).abs() * sdf_normals[body_sdf.view(-1) < 0, :]).pow(2).sum(dim=-1).sqrt().sum()
-
-        # Compute the contact loss
-        contact_loss = 0.0
-        # if self.contact and self.contact_loss_weight >0:
-        #     # select contact vertices
-        #     contact_body_vertices = vertices[:, self.contact_verts_ids, :]
-        #     contact_dist, _, idx1, _ = distChamfer(
-        #         contact_body_vertices.contiguous(), scene_v)
-
-        #     body_triangles = torch.index_select(
-        #         vertices, 1,
-        #         body_model_faces).view(1, -1, 3, 3)
-        #     # Calculate the edges of the triangles
-        #     # Size: BxFx3
-        #     edge0 = body_triangles[:, :, 1] - body_triangles[:, :, 0]
-        #     edge1 = body_triangles[:, :, 2] - body_triangles[:, :, 0]
-        #     # Compute the cross product of the edges to find the normal vector of
-        #     # the triangle
-        #     body_normals = torch.cross(edge0, edge1, dim=2)
-        #     # Normalize the result to get a unit vector
-        #     body_normals = body_normals / \
-        #         torch.norm(body_normals, 2, dim=2, keepdim=True)
-        #     # compute the vertex normals
-        #     body_v_normals = torch.mm(ftov, body_normals.squeeze())
-        #     body_v_normals = body_v_normals / \
-        #         torch.norm(body_v_normals, 2, dim=1, keepdim=True)
-
-        #     # vertix normals of contact vertices
-        #     contact_body_verts_normals = body_v_normals[self.contact_verts_ids, :]
-        #     # scene normals of the closest points on the scene surface to the contact vertices
-        #     contact_scene_normals = scene_vn[:, idx1.squeeze().to(
-        #         dtype=torch.long), :].squeeze()
-
-        #     # compute the angle between contact_verts normals and scene normals
-        #     angles = torch.asin(
-        #         torch.norm(torch.cross(contact_body_verts_normals, contact_scene_normals), 2, dim=1, keepdim=True)) *180 / np.pi
-
-        #     # consider only the vertices which their normals match
-        #     valid_contact_mask = (angles.le(self.contact_angle) + angles.ge(180 - self.contact_angle)).ge(1)
-        #     valid_contact_ids = valid_contact_mask.squeeze().nonzero().squeeze()
-
-        #     contact_dist = self.contact_robustifier(contact_dist[:, valid_contact_ids].sqrt())
-        #     contact_loss = self.contact_loss_weight * contact_dist.mean()
-
         total_loss = (joint_loss + 
                       joint3d_loss +
                       pprior_loss + shape_loss +
-                      angle_prior_loss + pen_loss +
-                      # jaw_prior_loss + expression_loss +
-                      # left_hand_prior_loss + right_hand_prior_loss + 
-                      #icp_dist 
-                      m2s_dist + s2m_dist 
-                      # sdf_penetration_loss + contact_loss 
+                      angle_prior_loss +
+                      m2s_dist + s2m_dist
                       )
         print("total:{:.2f}".format(total_loss),
               " joint_loss:{:.2f}".format(joint_loss),
@@ -668,7 +557,6 @@ class SMPLifyLoss(nn.Module):
               " pprior_loss:{:.2f}".format(pprior_loss),
               " shape_loss:{:.2f}".format(shape_loss),
               " angle_prior_loss:{:.2f}".format(angle_prior_loss),
-              " pen_loss:{:.2f}".format(pen_loss),
               " s2m_dist:{:.2f}".format(s2m_dist),
               " m2s_dist:{:.2f}".format(m2s_dist)
               )
