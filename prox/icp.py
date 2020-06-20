@@ -112,20 +112,25 @@ def nearest_neighbor(src, dst):
     distances, indices = neigh.kneighbors(src, return_distance=True)
     return distances.ravel(), indices.ravel()
 
-def dist_icp(src, dst, standard_deviation_range=0.9, threshold=0.05):
+def dist_icp(src, dst, standard_deviation_range=0.9, threshold=0.03):
     src1 = src.detach().numpy()
     dst1 = dst.detach().numpy()
     distances, indices = nearest_neighbor(src1[0, :,:], dst1[0, :,:])
 
+    if threshold > 0:
+        distances[distances > threshold] = np.nan
+
     #Compute Mean Error and Standard Deviation
-    mean_error = np.mean(distances)
-    stde_error = np.std(distances)
+    mean_error = np.nanmean(distances)
+    stde_error = np.nanstd(distances)
 
     #Ignore distances that are outlers
     trimmed_dst_indices = []
     trimmed_src_indices = []
     if standard_deviation_range > 0.0:
         for j in range(len(indices)):
+            if distances[j] is np.nan:
+                continue
             if distances[j] > (mean_error + standard_deviation_range * stde_error):
                 continue
             if distances[j] < (mean_error - standard_deviation_range * stde_error):

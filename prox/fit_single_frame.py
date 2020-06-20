@@ -132,6 +132,7 @@ def fit_single_frame(img,
                      body_segments_dir=None,
                      load_scene=False,
                      scene_dir=None,
+                     previous_result=None,
                      **kwargs):
     assert batch_size == 1, 'PyTorch L-BFGS only supports batch_size == 1'
     body_model.reset_params()
@@ -234,6 +235,10 @@ def fit_single_frame(img,
                                      dtype=dtype)
     else:
         body_mean_pose = body_pose_prior.get_mean().detach().cpu()
+
+    if previous_result is not None:
+        pose_embedding = previous_result['pose_embedding']
+        body_mean_pose = previous_result['body_pose']
 
     keypoint_data = torch.tensor(keypoints, dtype=dtype)
     gt_joints = keypoint_data[:, :, :2]
@@ -500,16 +505,6 @@ def fit_single_frame(img,
             camera_opt_params,
             **kwargs)
 
-        # The closure passed to the optimizer
-        fit_camera = monitor.create_fitting_closure(
-            camera_optimizer, body_model, camera, gt_joints,
-            camera_loss, create_graph=camera_create_graph,
-            use_vposer=use_vposer, vposer=vposer,
-            pose_embedding=pose_embedding,
-            scan_tensor=scan_tensor,
-            keypoints3d=keypoints3d,
-            return_full_pose=False, return_verts=False)
-
         def export_body_model(body_model, fn):
             # return
             try:
@@ -530,6 +525,16 @@ def fit_single_frame(img,
                 body.export(fn)
             finally: 
                 pass
+
+        # The closure passed to the optimizer
+        fit_camera = monitor.create_fitting_closure(
+            camera_optimizer, body_model, camera, gt_joints,
+            camera_loss, create_graph=camera_create_graph,
+            use_vposer=use_vposer, vposer=vposer,
+            pose_embedding=pose_embedding,
+            scan_tensor=scan_tensor,
+            keypoints3d=keypoints3d,
+            return_full_pose=False, return_verts=False)
 
         export_body_model(body_model, "./body_model-cam_before.ply")
 
@@ -585,7 +590,7 @@ def fit_single_frame(img,
                                      global_orient=orient,
                                      body_pose=body_mean_pose)
             body_model.reset_params(**new_params)
-            if use_vposer:
+            if use_vposer and previous_result is None:
                 with torch.no_grad():
                     pose_embedding.fill_(0)
 
@@ -615,6 +620,14 @@ def fit_single_frame(img,
                     joint_weights[:, 76:] = curr_weights['face_weight']
                 loss.reset_loss_weights(curr_weights)
 
+                # only take 10000 points in scan
+                import random
+                _, n, _ = scan_tensor.shape
+                ids = list(range(n))
+                random.shuffle(ids)
+                max_n = min(n, 20000)
+                ids = ids[:max_n]
+                
                 closure = monitor.create_fitting_closure(
                     body_optimizer, body_model,
                     camera=camera, gt_joints=gt_joints,
@@ -623,7 +636,7 @@ def fit_single_frame(img,
                     loss=loss, create_graph=body_create_graph,
                     use_vposer=use_vposer, vposer=vposer,
                     pose_embedding=pose_embedding,
-                    scan_tensor=scan_tensor,
+                    scan_tensor=scan_tensor[:, ids, :],
                     keypoints3d=keypoints3d,
                     scene_v=scene_v, scene_vn=scene_vn, scene_f=scene_f,ftov=ftov,
                     return_verts=True, return_full_pose=True)
@@ -674,6 +687,7 @@ def fit_single_frame(img,
 
             results.append({'loss': final_loss_val,
                             'result': result})
+
 
         with open(result_fn, 'wb') as result_file:
             if len(results) > 1:
@@ -777,3 +791,5 @@ def fit_single_frame(img,
         color = color.astype(np.float32) / 255.0
         img = pil_img.fromarray((color * 255).astype(np.uint8))
         img.save(body_scene_rendering_fn)
+
+    return {'pose_embedding': pose_embedding, 'body_pose': body_pose}

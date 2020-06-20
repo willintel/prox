@@ -96,15 +96,18 @@ class Projection():
             max_x = 0
             max_y = 0
 
+            ankle_ids = [19, 20, 21, 22, 23, 24] # skip ankles by default
             kps = np.round(keypoints[0].copy()).astype(int)
-            for kp in kps:
+            for i,kp in enumerate(kps):
+                if i in ankle_ids:
+                    continue
                 if kp[2] <= 0:
                     continue
                 min_x = min(kp[0], min_x)
                 max_x = max(kp[0], max_x)
                 min_y = min(kp[1], min_y)
                 max_y = max(kp[1], max_y)
-            margin = 20
+            margin = 0
             min_x = max(min_x-margin, 0)
             min_y = max(min_y-margin, 0)
             max_x = min(max_x+margin, color_im.shape[1])
@@ -150,9 +153,26 @@ class Projection():
                 uv = uvs[i]
                 oncolor_index_im[uv[1], uv[0]] = i
             kps = np.round(keypoints[0].copy()).astype(int)
+
+            # removing keypoints if side views
+            right_ids = [15, 17, 2, 3, 4, 9, 10, 11, 22, 23, 24, 1, 8]
+            left_ids = [16, 18, 5, 6, 7, 12, 13, 14, 19, 20, 21, 1, 8]
+            skip_ids = [19, 20, 21, 22, 23, 24] # skip ankles by default
+            if kps[15][2] > 0 and kps[16][2] > 0:
+                print("detected front side")
+            elif kps[15][2] < 1 and kps[16][2] < 1:
+                print("detected back side")
+            elif kps[15][2] < 1 and kps[17][2] < 1:
+                print("detected left side")
+                skip_ids = skip_ids + right_ids
+            elif kps[16][2] < 1 and kps[18][2] < 1:
+                print("detected right side")
+                skip_ids = skip_ids + left_ids
+            print("skip_ids:", skip_ids)
+
             keypoints3d = np.zeros(kps.shape)
             for i,uv in enumerate(kps):
-                if i in [19, 20, 21, 22, 23, 24]: # skip ankles
+                if i in skip_ids: # skip ankles
                     continue
                 if kps[i][2] <= 0.1:
                     continue
@@ -168,6 +188,8 @@ class Projection():
                     keypoints3d[i] *= 1.05 # adding depth
                     #keypoints3d[i][2] += 0.05 # adding 5cm depth
                 kp_uvs.append(uv)
+
+
         print("kp_ids:", kp_ids)
         print("keypoints3d:", keypoints3d)
         print("kps:", kps)
@@ -197,6 +219,7 @@ class Projection():
             points = np.dot(T, stacked.T).T[:, :3]
             points = np.ascontiguousarray(points)
         ind = points[:, 2] > TH
+
         return {'points':points[ind], 'colors':colors[ind], 'keypoints3d': keypoints3d}
 
 

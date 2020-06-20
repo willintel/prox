@@ -30,6 +30,7 @@ import open3d as o3d
 import torch
 
 import smplx
+from human_body_prior.tools.model_loader import load_vposer
 
 
 from misc_utils import JointMapper
@@ -230,6 +231,17 @@ def main(**args):
     # Add a fake batch dimension for broadcasting
     joint_weights.unsqueeze_(dim=0)
 
+    def export_body_model(body_model, body_pose, fn):
+        # return
+        try:
+            import trimesh
+            model_output = body_model(return_verts=True, body_pose=body_pose)
+            vertices_np = model_output.vertices.detach().cpu().numpy().squeeze()
+            body = trimesh.Trimesh(vertices_np, body_model.faces, process=False)
+            body.export(fn)
+        finally: 
+            pass
+
     for idx, data in enumerate(dataset_obj):
 
         img = data['img']
@@ -248,6 +260,7 @@ def main(**args):
         if not osp.exists(curr_mesh_folder):
             os.makedirs(curr_mesh_folder)
         #TODO: SMPLifyD and PROX won't work for multiple persons
+        previous_result = None
         for person_id in range(keypoints.shape[0]):
             if person_id >= max_persons and max_persons > 0:
                 continue
@@ -279,8 +292,7 @@ def main(**args):
                 body_model = male_model
 
             out_img_fn = osp.join(curr_img_folder, 'output.png')
-
-            fit_single_frame(img, keypoints[[person_id]], init_trans, scan,
+            previous_result = fit_single_frame(img, keypoints[[person_id]], init_trans, scan,
                              cam2world_dir=cam2world_dir,
                              scene_dir=scene_dir,
                              sdf_dir=sdf_dir,
@@ -303,7 +315,11 @@ def main(**args):
                              right_hand_prior=right_hand_prior,
                              jaw_prior=jaw_prior,
                              angle_prior=angle_prior,
+                             previous_result=previous_result,
                              **args)
+
+            fn = "idx{}-person_id{}.ply".format(idx, person_id)
+            export_body_model(body_model, previous_result['body_pose'], fn)
         break
         
     elapsed = time.time() - start

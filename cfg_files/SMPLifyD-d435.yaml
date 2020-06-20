@@ -20,7 +20,7 @@ mask_on_color: False
 # Depth
 init_mode: 'scan'
 #init_mode: 'both'
-m2s: True
+m2s: False
 rho_m2s: 5e-1
 m2s_weights:
     - 0.0
@@ -29,13 +29,13 @@ m2s_weights:
     - 1e4
     - 1e4
 
-s2m: False
-rho_s2m: 2e-1
+s2m: True
+rho_s2m: 5e-1
 s2m_weights:
     - 0.0
     - 0.0
+    - 5e1
     - 1e2
-    - 1e3
     - 1e3
 
 trans_opt_stages:
