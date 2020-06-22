@@ -21,7 +21,7 @@ import numpy as np
 import json
 
 
-def compute_normals(depth_im, points, valid_idx, min_x, max_x, min_y, max_y, offset=3):
+def compute_normals(depth_im, points, valid_idx, offset=3):
     h = depth_im.shape[0]
     w = depth_im.shape[1]
     def get_vec_2f1(uv1, uv2):
@@ -34,8 +34,8 @@ def compute_normals(depth_im, points, valid_idx, min_x, max_x, min_y, max_y, off
         return p2 - p1
     print("w:", w, " h:", h)
     normals = np.zeros(points.shape, dtype=float)
-    for y in range(min_y+offset+1, max_y-offset-1):
-        for x in range(min_x+offset+1, max_x-offset-1):
+    for y in range(offset+1, h-offset-1):
+        for x in range(offset+1, w-offset-1):
             idx = w*y + x
             if valid_idx[idx] == False:
                 continue
@@ -173,8 +173,10 @@ class Projection():
         valid_y = np.logical_and(uvs[:, 0] >= min_x, uvs[:, 0] < max_x)
         valid_idx = np.logical_and(valid_x, valid_y)
         
-        normals = compute_normals(depth_im, points, valid_idx, min_x, max_x, min_y, max_y, offset=3)
-        valid_idx = normals[:,2] < 0.0
+        normals = None
+        if True:
+            normals = compute_normals(depth_im, points, valid_idx, offset=3)
+            valid_idx = normals[:,2] < 0.0
 
         keypoints3d = []
         kp_uvs = []
@@ -234,7 +236,8 @@ class Projection():
                                                                                         0]] == 0
             uvs = uvs[valid_mask_idx == True]
             points = points[valid_mask_idx]
-            normals = normals[valid_mask_idx]
+            if normals is not None:
+                normals = normals[valid_mask_idx]
             colors = np.tile(default_color, [points.shape[0], 1])
             # colors = colors[valid_mask_idx]
             valid_idx = valid_mask_idx
@@ -245,7 +248,8 @@ class Projection():
             if color_im is not None:
                 colors[valid_idx == True,:3] = color_im[uvs[:, 1], uvs[:, 0]]/255.0
             points = points[valid_idx]
-            normals = normals[valid_idx]
+            if normals is not None:
+                normals = normals[valid_idx]
             colors = colors[valid_idx]
 
         if coord == 'color':
@@ -255,16 +259,21 @@ class Projection():
             points = np.dot(T, stacked.T).T[:, :3]
             points = np.ascontiguousarray(points)
 
-            # Transform/rotate normals to color camera coord
-            Rot = np.eye(4)
-            Rot[:3,:3] = T[:3,:3]
-            stacked_normals = np.column_stack((normals, np.ones(len(normals)) ))
-            normals = np.dot(Rot, stacked_normals.T).T[:, :3]
-            normals = np.ascontiguousarray(normals)
+            if normals is not None:
+                # Transform/rotate normals to color camera coord
+                Rot = np.eye(4)
+                Rot[:3,:3] = T[:3,:3]
+                stacked_normals = np.column_stack((normals, np.ones(len(normals)) ))
+                normals = np.dot(Rot, stacked_normals.T).T[:, :3]
+                normals = np.ascontiguousarray(normals)
 
         ind = points[:, 2] > TH
+        points = points[ind]
+        colors = colors[ind]
+        if normals is not None:
+            normals = normals[ind]
 
-        return {'points':points[ind], 'normals' : normals[ind], 'colors':colors[ind], 'keypoints3d': keypoints3d}
+        return {'points':points, 'normals' : normals, 'colors':colors, 'keypoints3d': keypoints3d}
 
 
     def align_color2depth(self, depth_im, color_im, interpolate=True):

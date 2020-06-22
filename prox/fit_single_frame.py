@@ -255,7 +255,8 @@ def fit_single_frame(img,
     keypoints3d = None
     if scan is not None:
         scan_tensor = torch.tensor(scan.get('points'), device=device, dtype=dtype).unsqueeze(0)
-        scan_normal = torch.tensor(scan.get('normals'), device=device, dtype=dtype).unsqueeze(0)
+        if scan.get('normals') is not None:
+            scan_normal = torch.tensor(scan.get('normals'), device=device, dtype=dtype).unsqueeze(0)
         keypoints3d = torch.tensor(scan.get('keypoints3d'), device=device, dtype=dtype).unsqueeze(0)
 
     # load pre-computed signed distance field
@@ -565,7 +566,7 @@ def fit_single_frame(img,
                     use_vposer=use_vposer, vposer=vposer,
                     pose_embedding=pose_embedding,
                     scan_tensor=scan_tensor[:, ids, :],
-                    scan_normal=scan_normal[:, ids, :],
+                    scan_normal=  None if (scan_normal is None) else scan_normal[:, ids, :],
                     keypoints3d=keypoints3d,
                     scene_v=scene_v, scene_vn=scene_vn, scene_f=scene_f,ftov=ftov,
                     return_verts=True, return_full_pose=True,
