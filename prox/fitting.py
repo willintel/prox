@@ -553,9 +553,17 @@ class SMPLifyLoss(nn.Module):
 
         if opt_idx >=3: # down weight priors
             joint_loss *= 1.e-2
-            joint3d_loss *= 1.e-1
+            # joint3d_loss *= 1.e-1
+            pprior_loss *= 1.e-2
             shape_loss *= 1.e-2
             angle_prior_loss *= 1.e-2
+
+        # if opt_idx >=4: # down weight priors
+        #     joint_loss *= 0.0
+        #     joint3d_loss *= 0.0
+        #     pprior_loss *= 0.0
+        #     shape_loss *= 0.0
+        #     angle_prior_loss *= 0.0
 
         total_loss = (joint_loss + 
                       joint3d_loss +
