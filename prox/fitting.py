@@ -552,9 +552,10 @@ class SMPLifyLoss(nn.Module):
             vertices.unsqueeze_(0)
 
         if opt_idx >=3: # down weight priors
-            joint_loss = joint_loss*1.e-2
-            shape_loss = shape_loss*1.e-2
-            angle_prior_loss = angle_prior_loss*1.e-2
+            joint_loss *= 1.e-2
+            joint3d_loss *= 1.e-1
+            shape_loss *= 1.e-2
+            angle_prior_loss *= 1.e-2
 
         total_loss = (joint_loss + 
                       joint3d_loss +
