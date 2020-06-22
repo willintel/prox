@@ -251,11 +251,12 @@ def fit_single_frame(img,
         joints_conf = joints_conf.to(device=device, dtype=dtype)
 
     scan_tensor = None
+    scan_normal = None
     keypoints3d = None
     if scan is not None:
         scan_tensor = torch.tensor(scan.get('points'), device=device, dtype=dtype).unsqueeze(0)
+        scan_normal = torch.tensor(scan.get('normals'), device=device, dtype=dtype).unsqueeze(0)
         keypoints3d = torch.tensor(scan.get('keypoints3d'), device=device, dtype=dtype).unsqueeze(0)
-    
 
     # load pre-computed signed distance field
     sdf = None
@@ -263,17 +264,6 @@ def fit_single_frame(img,
     grid_min = None
     grid_max = None
     voxel_size = None
-    if sdf_penetration:
-        with open(osp.join(sdf_dir, scene_name + '.json'), 'r') as f:
-            sdf_data = json.load(f)
-            grid_min = torch.tensor(np.array(sdf_data['min']), dtype=dtype, device=device)
-            grid_max = torch.tensor(np.array(sdf_data['max']), dtype=dtype, device=device)
-            grid_dim = sdf_data['dim']
-        voxel_size = (grid_max - grid_min) / grid_dim
-        sdf = np.load(osp.join(sdf_dir, scene_name + '_sdf.npy')).reshape(grid_dim, grid_dim, grid_dim)
-        sdf = torch.tensor(sdf, dtype=dtype, device=device)
-        sdf_normals = np.load(osp.join(sdf_dir, scene_name + '_normals.npy')).reshape(grid_dim, grid_dim, grid_dim, 3)
-        sdf_normals = torch.tensor(sdf_normals, dtype=dtype, device=device)
 
     fn = os.path.join(cam2world_dir, scene_name + '.json')
     if osp.exists(fn):
@@ -288,75 +278,12 @@ def fit_single_frame(img,
     search_tree = None
     pen_distance = None
     filter_faces = None
-    if interpenetration:
-        from mesh_intersection.bvh_search_tree import BVH
-        import mesh_intersection.loss as collisions_loss
-        from mesh_intersection.filter_faces import FilterFaces
-
-        assert use_cuda, 'Interpenetration term can only be used with CUDA'
-        assert torch.cuda.is_available(), \
-            'No CUDA Device! Interpenetration term can only be used' + \
-            ' with CUDA'
-
-        search_tree = BVH(max_collisions=max_collisions)
-
-        pen_distance = \
-            collisions_loss.DistanceFieldPenetrationLoss(
-                sigma=df_cone_height, point2plane=point2plane,
-                vectorized=True, penalize_outside=penalize_outside)
-
-        if part_segm_fn:
-            # Read the part segmentation
-            part_segm_fn = os.path.expandvars(part_segm_fn)
-            with open(part_segm_fn, 'rb') as faces_parents_file:
-                face_segm_data = pickle.load(faces_parents_file,
-                                             encoding='latin1')
-            faces_segm = face_segm_data['segm']
-            faces_parents = face_segm_data['parents']
-            # Create the module used to filter invalid collision pairs
-            filter_faces = FilterFaces(
-                faces_segm=faces_segm, faces_parents=faces_parents,
-                ign_part_pairs=ign_part_pairs).to(device=device)
 
     # load vertix ids of contact parts
     contact_verts_ids  = ftov = None
-    if contact:
-        contact_verts_ids = []
-        for part in contact_body_parts:
-            with open(os.path.join(body_segments_dir, part + '.json'), 'r') as f:
-                data = json.load(f)
-                contact_verts_ids.append(list(set(data["verts_ind"])))
-        contact_verts_ids = np.concatenate(contact_verts_ids)
-
-        vertices = body_model(return_verts=True, body_pose= torch.zeros((batch_size, 63), dtype=dtype, device=device)).vertices
-        vertices_np = vertices.detach().cpu().numpy().squeeze()
-        body_faces_np = body_model.faces_tensor.detach().cpu().numpy().reshape(-1, 3)
-        m = Mesh(v=vertices_np, f=body_faces_np)
-        ftov = m.faces_by_vertex(as_sparse_matrix=True)
-
-        ftov = sparse.coo_matrix(ftov)
-        indices = torch.LongTensor(np.vstack((ftov.row, ftov.col))).to(device)
-        values = torch.FloatTensor(ftov.data).to(device)
-        shape = ftov.shape
-        ftov = torch.sparse.FloatTensor(indices, values, torch.Size(shape))
 
     # Read the scene scan if any
     scene_v = scene_vn = scene_f = None
-    if scene_name is not None:
-        if load_scene:
-            scene = Mesh(filename=os.path.join(scene_dir, scene_name + '.ply'))
-
-            scene.vn = scene.estimate_vertex_normals()
-
-            scene_v = torch.tensor(scene.v[np.newaxis, :],
-                                   dtype=dtype,
-                                   device=device).contiguous()
-            scene_vn = torch.tensor(scene.vn[np.newaxis, :],
-                                    dtype=dtype,
-                                    device=device)
-            scene_f = torch.tensor(scene.f.astype(int)[np.newaxis, :],
-                                   dtype=torch.long,
-                                   device=device)
 
     # Weights used for the pose prior and the shape prior
     opt_weights_dict = {'data_weight': data_weights,
@@ -533,6 +460,7 @@ def fit_single_frame(img,
             use_vposer=use_vposer, vposer=vposer,
             pose_embedding=pose_embedding,
             scan_tensor=scan_tensor,
+            scan_normal=scan_normal,
             keypoints3d=keypoints3d,
             return_full_pose=False, return_verts=False)
 
@@ -637,9 +565,11 @@ def fit_single_frame(img,
                     use_vposer=use_vposer, vposer=vposer,
                     pose_embedding=pose_embedding,
                     scan_tensor=scan_tensor[:, ids, :],
+                    scan_normal=scan_normal[:, ids, :],
                     keypoints3d=keypoints3d,
                     scene_v=scene_v, scene_vn=scene_vn, scene_f=scene_f,ftov=ftov,
-                    return_verts=True, return_full_pose=True)
+                    return_verts=True, return_full_pose=True,
+                    opt_idx=opt_idx)
 
                 if interactive:
                     if use_cuda and torch.cuda.is_available():

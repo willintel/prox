@@ -112,7 +112,7 @@ def nearest_neighbor(src, dst):
     distances, indices = neigh.kneighbors(src, return_distance=True)
     return distances.ravel(), indices.ravel()
 
-def dist_icp(src, dst, standard_deviation_range=0.9, threshold=0.03):
+def dist_icp(src, dst, src_normal=None, standard_deviation_range=0.95, threshold=0.05):
     src1 = src.detach().numpy()
     dst1 = dst.detach().numpy()
     distances, indices = nearest_neighbor(src1[0, :,:], dst1[0, :,:])
@@ -139,14 +139,18 @@ def dist_icp(src, dst, standard_deviation_range=0.9, threshold=0.03):
             trimmed_src_indices.append(j)
         
         diff = src[:, trimmed_src_indices, :] - dst[:, trimmed_dst_indices, :]
+        if src_normal is not None:
+            diff = torch.sum(diff * src_normal[:, trimmed_src_indices, :], 2)
     elif threshold > 0.0:
         for j, value in enumerate(indices):
-            if distances[j] > threshold:
+            if distances[j] > threshold or distances[j] is np.nan:
                 continue
             trimmed_dst_indices.append(value)
             trimmed_src_indices.append(j)
         
         diff = src[:, trimmed_src_indices, :] - dst[:, trimmed_dst_indices, :]
+        if src_normal is not None:
+            diff = torch.sum(diff * src_normal[:, trimmed_src_indices, :], 2)
     else:
         diff = src[:,:,:] - dst[:,indices,:]
         

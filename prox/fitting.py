@@ -219,6 +219,7 @@ class FittingMonitor(object):
                                use_vposer=False, vposer=None,
                                pose_embedding=None,
                                scan_tensor=None,
+                               scan_normal=None,
                                create_graph=False,
                                **kwargs):
         faces_tensor = body_model.faces_tensor.view(-1)
@@ -250,6 +251,7 @@ class FittingMonitor(object):
                               pose_embedding=pose_embedding,
                               use_vposer=use_vposer,
                               scan_tensor=scan_tensor,
+                              scan_normal=scan_normal,
                               visualize=self.visualize,
                               **kwargs)
 
@@ -453,8 +455,9 @@ class SMPLifyLoss(nn.Module):
     def forward(self, body_model_output, camera, gt_joints, joints_conf,
                 body_model_faces, joint_weights,
                 use_vposer=False, pose_embedding=None,
-                scan_tensor=None, keypoints3d=None, visualize=False,
+                scan_tensor=None, scan_normal=None, keypoints3d=None, visualize=False,
                 scene_v=None, scene_vn=None, scene_f=None,ftov=None,
+                opt_idx=None,
                 **kwargs):
         projected_joints = camera(body_model_output.joints)
         # Calculate the weights for each joints
@@ -469,7 +472,7 @@ class SMPLifyLoss(nn.Module):
             if gt_joints[0,i,0].numpy() == 0.0 or gt_joints[0,i,1].numpy() == 0.0:
                 joint_diff[0,i,:] = torch.tensor([0.0, 0.0])
         joint_loss = (torch.sum(weights ** 2 * joint_diff) *
-                      self.data_weight ** 2) * 0.01
+                         self.data_weight ** 2) * 0.01
 
         joint3d_loss = 0.0
         if keypoints3d is not None:
@@ -479,8 +482,9 @@ class SMPLifyLoss(nn.Module):
                     diff[0,i,:] = torch.tensor([0.0, 0.0, 0.0])
                 # diff[0,i,2] = torch.tensor(0.0)
             joint3d_diff = self.robustifier(diff)
+            wfactor = 1.e5
             joint3d_loss = (torch.sum(weights ** 2 * joint3d_diff) *
-                          self.data_weight ** 2) * 1.e5
+                          self.data_weight ** 2) * wfactor
             # print("joint3d_diff:", joint3d_diff[0])
 
         # Calculate the loss from the Pose prior
@@ -494,6 +498,7 @@ class SMPLifyLoss(nn.Module):
 
         shape_loss = torch.sum(self.shape_prior(
             body_model_output.betas)) * self.shape_weight ** 2
+
         # Calculate the prior over the joint rotations. This a heuristic used
         # to prevent extreme rotation of the elbows and knees
         body_pose = body_model_output.full_pose[:, 3:66]
@@ -516,7 +521,8 @@ class SMPLifyLoss(nn.Module):
             if self.s2m and self.s2m_weight > 0:
                 import icp
                 s2m_dist = icp.dist_icp(scan_tensor, 
-                                        body_model_output.vertices[:, np.where(vis > 0)[0], :])
+                                        body_model_output.vertices[:, np.where(vis > 0)[0], :],
+                                        src_normal=scan_normal)
                 s2m_dist = self.s2m_robustifier(s2m_dist) #(icp_dist.sqrt())
                 s2m_dist = self.s2m_weight * s2m_dist.sum()
             
@@ -544,6 +550,11 @@ class SMPLifyLoss(nn.Module):
             vertices.squeeze_()
             vertices = self.R.mm(vertices.t()).t() + self.t.repeat([nv, 1])
             vertices.unsqueeze_(0)
+
+        if opt_idx >=3: # down weight priors
+            joint_loss = joint_loss*1.e-2
+            shape_loss = shape_loss*1.e-2
+            angle_prior_loss = angle_prior_loss*1.e-2
 
         total_loss = (joint_loss + 
                       joint3d_loss +

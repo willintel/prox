@@ -20,6 +20,37 @@ import cv2
 import numpy as np
 import json
 
+
+def compute_normals(depth_im, points, valid_idx, min_x, max_x, min_y, max_y, offset=3):
+    h = depth_im.shape[0]
+    w = depth_im.shape[1]
+    def get_vec_2f1(uv1, uv2):
+        idx1 = w*uv1[1] + uv1[0]
+        idx2 = w*uv2[1] + uv2[0]
+        p1 = points[idx1]
+        p2 = points[idx2]
+        if p1[2] < 0.1 or p2[2] < 0.1:
+            return None
+        return p2 - p1
+    print("w:", w, " h:", h)
+    normals = np.zeros(points.shape, dtype=float)
+    for y in range(min_y+offset+1, max_y-offset-1):
+        for x in range(min_x+offset+1, max_x-offset-1):
+            idx = w*y + x
+            if valid_idx[idx] == False:
+                continue
+            lr = get_vec_2f1([x-offset, y],  [x+offset, y])
+            tb = get_vec_2f1([x, y-offset], [x, y+offset])
+            if lr is None or tb is None:
+                continue 
+            lr = lr/(np.linalg.norm(lr)+1.e-9)
+            tb = tb/(np.linalg.norm(tb)+1.e-9)
+            normal = np.cross(tb, lr)
+            if normal[2] > -1.e-3:
+                continue
+            normals[idx] = normal
+    return normals
+
 class Projection():
     def __init__(self, calib_dir):
         depth_fn = osp.join(calib_dir, 'depth.json')
@@ -83,32 +114,6 @@ class Projection():
                 break
         return result
     
-    def get_normal(self, uv, depth_im, points, valid_idx):
-        h, w = depth_im.shape[:2]
-        def in_image(pnt):
-            if pnt[0] <= 0 or pnt[0] >= w-1 or pnt[1] <= 0 or pnt[1] >= h-1:
-                return False
-            return True
-        def index_from_uv(uv):
-            return uv[1]*w + uv[0]
-
-        def get_vec_2f1(uv1, uv2):
-            if not in_image(uv1) or not in_image(uv2):
-                return None
-            idx1 = index_from_uv(uv1)
-            idx2 = index_from_uv(uv2)
-            if valid_idx[idx1] == False or valid_idx[idx2] == False:
-                return None 
-            vec = points[idx2] - points[idx1]
-            return vec
-        offset = 3
-        lr = get_vec_2f1([uv[0]-offet, uv[1]],  [uv[0]+offset, uv[1]])
-        tb = get_vec_2f1([uv[0], uv[1]-offset], [uv[0], uv[1]+offset])
-        normal = np.cross(lr, tb)
-        return normal 
-
-
-    
     def projectPoints(self, v, cam):
         v = v.reshape((-1,3)).copy()
         return cv2.projectPoints(v, np.asarray(cam['R']), np.asarray(cam['T']), np.asarray(cam['camera_mtx']), np.asarray(cam['k']))[0].squeeze()
@@ -160,7 +165,6 @@ class Projection():
             return {'v': []}
 
         points = self.unproject_depth_image(depth_im, self.depth_cam).reshape(-1, 3)
-        normals = np.zeros(points.shape, dtype=float)
         colors = np.tile(default_color, [points.shape[0], 1])
 
         uvs = self.projectPoints(points, self.color_cam)
@@ -168,20 +172,9 @@ class Projection():
         valid_x = np.logical_and(uvs[:, 1] >= min_y, uvs[:, 1] < max_y)
         valid_y = np.logical_and(uvs[:, 0] >= min_x, uvs[:, 0] < max_x)
         valid_idx = np.logical_and(valid_x, valid_y)
-        valid_normal_idx = valid_idx.copy()
-
-        for i, v in enumerate(valid_idx):
-            if v == False: 
-                continue
-            uv = uvs[i]
-            offset = 3
-            normal = self.get_normal(uv, depth_im, points, valid_idx)
-            if normal is None:
-                valid_normal_idx[i] = False
-            else:
-                normals[i] = normal
-        valid_idx = valid_normal_idx.copy()
-
+        
+        normals = compute_normals(depth_im, points, valid_idx, min_x, max_x, min_y, max_y, offset=3)
+        valid_idx = normals[:,2] < 0.0
 
         keypoints3d = []
         kp_uvs = []
@@ -241,6 +234,7 @@ class Projection():
                                                                                         0]] == 0
             uvs = uvs[valid_mask_idx == True]
             points = points[valid_mask_idx]
+            normals = normals[valid_mask_idx]
             colors = np.tile(default_color, [points.shape[0], 1])
             # colors = colors[valid_mask_idx]
             valid_idx = valid_mask_idx
@@ -251,6 +245,7 @@ class Projection():
             if color_im is not None:
                 colors[valid_idx == True,:3] = color_im[uvs[:, 1], uvs[:, 0]]/255.0
             points = points[valid_idx]
+            normals = normals[valid_idx]
             colors = colors[valid_idx]
 
         if coord == 'color':
@@ -261,7 +256,7 @@ class Projection():
             points = np.ascontiguousarray(points)
 
             # Transform/rotate normals to color camera coord
-            Rot = np.eyes(4)
+            Rot = np.eye(4)
             Rot[:3,:3] = T[:3,:3]
             stacked_normals = np.column_stack((normals, np.ones(len(normals)) ))
             normals = np.dot(Rot, stacked_normals.T).T[:, :3]
