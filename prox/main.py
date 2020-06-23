@@ -171,59 +171,13 @@ def main(**args):
         dtype=dtype,
         **args)
 
-    jaw_prior, expr_prior = None, None
-    if use_face:
-        jaw_prior = create_prior(
-            prior_type=args.get('jaw_prior_type'),
-            dtype=dtype,
-            **args)
-        expr_prior = create_prior(
-            prior_type=args.get('expr_prior_type', 'l2'),
-            dtype=dtype, **args)
-
-    left_hand_prior, right_hand_prior = None, None
-    if use_hands:
-        lhand_args = args.copy()
-        lhand_args['num_gaussians'] = args.get('num_pca_comps')
-        left_hand_prior = create_prior(
-            prior_type=args.get('left_hand_prior_type'),
-            dtype=dtype,
-            use_left_hand=True,
-            **lhand_args)
-
-        rhand_args = args.copy()
-        rhand_args['num_gaussians'] = args.get('num_pca_comps')
-        right_hand_prior = create_prior(
-            prior_type=args.get('right_hand_prior_type'),
-            dtype=dtype,
-            use_right_hand=True,
-            **rhand_args)
-
     shape_prior = create_prior(
         prior_type=args.get('shape_prior_type', 'l2'),
         dtype=dtype, **args)
 
     angle_prior = create_prior(prior_type='angle', dtype=dtype)
 
-    if use_cuda and torch.cuda.is_available():
-        device = torch.device('cuda')
-
-        camera = camera.to(device=device)
-        female_model = female_model.to(device=device)
-        male_model = male_model.to(device=device)
-        if args.get('model_type') != 'smplh':
-            neutral_model = neutral_model.to(device=device)
-        body_pose_prior = body_pose_prior.to(device=device)
-        angle_prior = angle_prior.to(device=device)
-        shape_prior = shape_prior.to(device=device)
-        if use_face:
-            expr_prior = expr_prior.to(device=device)
-            jaw_prior = jaw_prior.to(device=device)
-        if use_hands:
-            left_hand_prior = left_hand_prior.to(device=device)
-            right_hand_prior = right_hand_prior.to(device=device)
-    else:
-        device = torch.device('cpu')
+    device = torch.device('cpu')
 
     # A weight for every joint of the model
     joint_weights = dataset_obj.get_joint_weights().to(device=device,
@@ -309,11 +263,11 @@ def main(**args):
                              mesh_fn=curr_mesh_fn,
                              body_scene_rendering_fn=curr_body_scene_rendering_fn,
                              shape_prior=shape_prior,
-                             expr_prior=expr_prior,
+                             expr_prior=None,
                              body_pose_prior=body_pose_prior,
-                             left_hand_prior=left_hand_prior,
-                             right_hand_prior=right_hand_prior,
-                             jaw_prior=jaw_prior,
+                             left_hand_prior=None,
+                             right_hand_prior=None,
+                             jaw_prior=None,
                              angle_prior=angle_prior,
                              previous_result=None,
                              **args)
@@ -353,8 +307,8 @@ if __name__ == "__main__":
 #    print("FIT_DATA_FOLDER:", FIT_DATA_FOLDER)
     FIT_DATA_FOLDER = "/media/psf/Home/data/mevolve/inhome-test-rig/2020_05_21/d435-dynamic-human_4shot-21_08_33/snapshots/fit-data"
     FIT_CONFIG = "SMPLifyD-d435.yaml"
-    # FIT_DATA_FOLDER = "/media/psf/Home/data/mevolve/inhome-test-rig/2020_06_16/d455-dynamic-human-4shot-00_35_05/016122250304/snapshots/fit-data"
-    # FIT_CONFIG = "SMPLifyD-d455.yaml"
+    FIT_DATA_FOLDER = "/media/psf/Home/data/mevolve/inhome-test-rig/2020_06_16/d455-dynamic-human-4shot-00_35_05/016122250304/snapshots/fit-data"
+    FIT_CONFIG = "SMPLifyD-d455.yaml"
     argv = [
 #        "python3", os.path.join(PROX_SRC_PATH, "prox", "main.py"),
        "--config", os.path.join(PROX_SRC_PATH,"cfg_files", FIT_CONFIG),
