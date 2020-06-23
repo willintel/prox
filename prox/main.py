@@ -309,11 +309,11 @@ def main(**args):
                              mesh_fn=curr_mesh_fn,
                              body_scene_rendering_fn=curr_body_scene_rendering_fn,
                              shape_prior=shape_prior,
-                             expr_prior=expr_prior,
+                             expr_prior=None,
                              body_pose_prior=body_pose_prior,
                              left_hand_prior=left_hand_prior,
                              right_hand_prior=right_hand_prior,
-                             jaw_prior=jaw_prior,
+                             jaw_prior=None,
                              angle_prior=angle_prior,
                              previous_result=None,
                              **args)
@@ -353,8 +353,8 @@ if __name__ == "__main__":
 #    print("FIT_DATA_FOLDER:", FIT_DATA_FOLDER)
     FIT_DATA_FOLDER = "/media/psf/Home/data/mevolve/inhome-test-rig/2020_05_21/d435-dynamic-human_4shot-21_08_33/snapshots/fit-data"
     FIT_CONFIG = "SMPLifyD-d435.yaml"
-    # FIT_DATA_FOLDER = "/media/psf/Home/data/mevolve/inhome-test-rig/2020_06_16/d455-dynamic-human-4shot-00_35_05/016122250304/snapshots/fit-data"
-    # FIT_CONFIG = "SMPLifyD-d455.yaml"
+    FIT_DATA_FOLDER = "/media/psf/Home/data/mevolve/inhome-test-rig/2020_06_16/d455-dynamic-human-4shot-00_35_05/016122250304/snapshots/fit-data"
+    FIT_CONFIG = "SMPLifyD-d455.yaml"
     argv = [
 #        "python3", os.path.join(PROX_SRC_PATH, "prox", "main.py"),
        "--config", os.path.join(PROX_SRC_PATH,"cfg_files", FIT_CONFIG),
