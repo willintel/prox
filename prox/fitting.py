@@ -532,17 +532,6 @@ class SMPLifyLoss(nn.Module):
                 m2s_dist = self.m2s_robustifier(m2s_dist) #(icp_dist.sqrt())
                 m2s_dist = self.m2s_weight * m2s_dist.sum()
 
-#            if self.s2m and self.s2m_weight > 0 and vis.sum() > 0:
-#                s2m_dist, _, _, _ = distChamfer(scan_tensor,
-#                                                 body_model_output.vertices[:, np.where(vis > 0)[0], :])
-#                s2m_dist = self.s2m_robustifier(s2m_dist.sqrt())
-#                s2m_dist = self.s2m_weight * s2m_dist.sum()
-#            if self.m2s and self.m2s_weight > 0 and vis.sum() > 0:
-#                _, m2s_dist, _, _ = distChamfer(scan_tensor,
-#                                                 body_model_output.vertices[:, np.where(np.logical_and(vis > 0, self.body_mask))[0], :])
-#                m2s_dist = self.m2s_robustifier(m2s_dist.sqrt())
-#                m2s_dist = self.m2s_weight * m2s_dist.sum()
-
         # Transform vertices to world coordinates
         if self.R is not None and self.t is not None:
             vertices = body_model_output.vertices
@@ -580,11 +569,7 @@ class SMPLifyLoss(nn.Module):
               " s2m_dist:{:.2f}".format(s2m_dist),
               " m2s_dist:{:.2f}".format(m2s_dist)
               )
-        if visualize:
-            print('total:{:.2f}, joint_loss:{:0.2f},  s2m:{:0.2f}, m2s:{:0.2f}, penetration:{:0.2f}, contact:{:0.2f}'.
-                  format(total_loss.item(), joint_loss.item() ,torch.tensor(s2m_dist).item(),
-                         torch.tensor(icp_dist).item(),
-                         torch.tensor(m2s_dist).item() ,torch.tensor(sdf_penetration_loss).item(), torch.tensor(contact_loss).item()))
+        
         return total_loss
 
 

@@ -482,14 +482,6 @@ def fit_single_frame(img,
         
         export_body_model(body_model, "./body_model-cam_after.ply")
 
-        if interactive:
-            if use_cuda and torch.cuda.is_available():
-                torch.cuda.synchronize()
-            tqdm.write('Camera initialization done after {:.4f}'.format(
-                time.time() - camera_init_start))
-            tqdm.write('Camera initialization final loss {:.4f}'.format(
-                cam_init_loss_val))
-
         # If the 2D detections/positions of the shoulder joints are too
         # close the rotate the body by 180 degrees and also fit to that
         # orientation
@@ -572,10 +564,6 @@ def fit_single_frame(img,
                     return_verts=True, return_full_pose=True,
                     opt_idx=opt_idx)
 
-                if interactive:
-                    if use_cuda and torch.cuda.is_available():
-                        torch.cuda.synchronize()
-                    stage_start = time.time()
                 final_loss_val = monitor.run_fitting(
                     body_optimizer,
                     closure, final_params,
@@ -584,23 +572,6 @@ def fit_single_frame(img,
                     use_vposer=use_vposer)
 
                 export_body_model(body_model, "./body_model-or_idx{}-opt_idx{}.ply".format(or_idx, opt_idx))
-                if interactive:
-                    if use_cuda and torch.cuda.is_available():
-                        torch.cuda.synchronize()
-                    elapsed = time.time() - stage_start
-                    if interactive:
-                        tqdm.write('Stage {:03d} done after {:.4f} seconds'.format(
-                            opt_idx, elapsed))
-
-            if interactive:
-                if use_cuda and torch.cuda.is_available():
-                    torch.cuda.synchronize()
-                elapsed = time.time() - opt_start
-                tqdm.write(
-                    'Body fitting Orientation {} done after {:.4f} seconds'.format(
-                        or_idx, elapsed))
-                tqdm.write('Body final loss val = {:.5f}'.format(
-                    final_loss_val))
 
             # Get the result of the fitting process
             # Store in it the errors list in order to compare multiple
