@@ -292,6 +292,8 @@ def main(**args):
                 body_model = male_model
 
             out_img_fn = osp.join(curr_img_folder, 'output.png')
+            # print("left_hand_prior", left_hand_prior)
+            # break
             previous_result = fit_single_frame(img, keypoints[[person_id]], init_trans, scan,
                              cam2world_dir=cam2world_dir,
                              scene_dir=scene_dir,
@@ -309,12 +311,12 @@ def main(**args):
                              mesh_fn=curr_mesh_fn,
                              body_scene_rendering_fn=curr_body_scene_rendering_fn,
                              shape_prior=shape_prior,
-                             expr_prior=None,
                              body_pose_prior=body_pose_prior,
-                             left_hand_prior=left_hand_prior,
-                             right_hand_prior=right_hand_prior,
-                             jaw_prior=None,
                              angle_prior=angle_prior,
+                             left_hand_prior=None,
+                             right_hand_prior=None,
+                             expr_prior=None,
+                             jaw_prior=None,
                              previous_result=None,
                              **args)
 
