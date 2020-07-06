@@ -137,10 +137,11 @@ class Projection():
                 max_x = max(kp[0], max_x)
                 min_y = min(kp[1], min_y)
                 max_y = max(kp[1], max_y)
-            margin = 20
+            margin = 0
             min_x = max(min_x-margin, 0)
             min_y = max(min_y-margin, 0)
             max_x = min(max_x+margin, color_im.shape[1])
+            max_x = max_x - 60
             max_y = min(max_y+margin, color_im.shape[0])
         else:
             min_x = 0
