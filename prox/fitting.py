@@ -524,6 +524,7 @@ class SMPLifyLoss(nn.Module):
                                         body_model_output.vertices[:, np.where(vis > 0)[0], :],
                                         src_normal=scan_normal)
                 s2m_dist = self.s2m_robustifier(s2m_dist) #(icp_dist.sqrt())
+                # s2m_dist = s2m_dist ** 2
                 s2m_dist = self.s2m_weight * s2m_dist.sum()
             
             if self.m2s and self.m2s_weight > 0:
@@ -551,19 +552,19 @@ class SMPLifyLoss(nn.Module):
             vertices = self.R.mm(vertices.t()).t() + self.t.repeat([nv, 1])
             vertices.unsqueeze_(0)
 
-        if opt_idx >=3: # down weight priors
-            joint_loss *= 1.e-2
-            # joint3d_loss *= 1.e-1
-            pprior_loss *= 1.e-2
-            shape_loss *= 1.e-2
-            angle_prior_loss *= 1.e-2
+        # if opt_idx >=3: # down weight priors
+        #     joint_loss *= 1.e-2
+        #     # joint3d_loss *= 1.e-1
+        #     pprior_loss *= 1.e-2
+        #     shape_loss *= 1.e-2
+        #     angle_prior_loss *= 1.e-2
 
-        # if opt_idx >=4: # down weight priors
-        #     joint_loss *= 0.0
-        #     joint3d_loss *= 0.0
-        #     pprior_loss *= 0.0
-        #     shape_loss *= 0.0
-        #     angle_prior_loss *= 0.0
+        if opt_idx >=3: # down weight priors
+            joint_loss *= 1.e1
+            joint3d_loss *= 0.0
+            pprior_loss *= 0.0
+            shape_loss *= 0.0
+            angle_prior_loss *= 0.0
 
         total_loss = (joint_loss + 
                       joint3d_loss +
