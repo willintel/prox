@@ -554,7 +554,7 @@ def fit_single_frame(img,
                 _, n, _ = scan_tensor.shape
                 ids = list(range(n))
                 random.shuffle(ids)
-                max_n = min(n, 20000)
+                max_n = min(n, n)
                 ids = ids[:max_n]
                 
                 closure = monitor.create_fitting_closure(
