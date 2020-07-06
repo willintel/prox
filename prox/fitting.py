@@ -319,19 +319,13 @@ class SMPLifyLoss(nn.Module):
                  rho=100,
                  body_pose_prior=None,
                  shape_prior=None,
-                 expr_prior=None,
                  angle_prior=None,
-                 jaw_prior=None,
                  use_joints_conf=True,
-                 use_face=True, use_hands=True,
-                 left_hand_prior=None, right_hand_prior=None,
                  interpenetration=True, dtype=torch.float32,
                  data_weight=1.0,
                  body_pose_weight=0.0,
                  shape_weight=0.0,
                  bending_prior_weight=0.0,
-                 hand_prior_weight=0.0,
-                 expr_prior_weight=0.0, jaw_prior_weight=0.0,
                  coll_loss_weight=0.0,
                  s2m=False,
                  m2s=False,
@@ -341,20 +335,10 @@ class SMPLifyLoss(nn.Module):
                  m2s_weight=0.0,
                  head_mask=None,
                  body_mask=None,
-                 sdf_penetration=False,
-                 voxel_size=None,
                  grid_min=None,
                  grid_max=None,
-                 sdf=None,
-                 sdf_normals=None,
-                 sdf_penetration_weight=0.0,
                  R=None,
                  t=None,
-                 contact=False,
-                 contact_loss_weight=0.0,
-                 contact_verts_ids=None,
-                 rho_contact=0.0,
-                 contact_angle=0.0,
                  **kwargs):
 
         super(SMPLifyLoss, self).__init__()
@@ -380,23 +364,6 @@ class SMPLifyLoss(nn.Module):
         self.R = R
         self.t = t
 
-        self.interpenetration = interpenetration
-        if self.interpenetration:
-            self.search_tree = search_tree
-            self.tri_filtering_module = tri_filtering_module
-            self.pen_distance = pen_distance
-
-
-        self.use_hands = use_hands
-        if self.use_hands:
-            self.left_hand_prior = left_hand_prior
-            self.right_hand_prior = right_hand_prior
-
-        self.use_face = use_face
-        if self.use_face:
-            self.expr_prior = expr_prior
-            self.jaw_prior = jaw_prior
-
         self.register_buffer('data_weight',
                              torch.tensor(data_weight, dtype=dtype))
         self.register_buffer('body_pose_weight',
@@ -405,40 +372,11 @@ class SMPLifyLoss(nn.Module):
                              torch.tensor(shape_weight, dtype=dtype))
         self.register_buffer('bending_prior_weight',
                              torch.tensor(bending_prior_weight, dtype=dtype))
-        if self.use_hands:
-            self.register_buffer('hand_prior_weight',
-                                 torch.tensor(hand_prior_weight, dtype=dtype))
-        if self.use_face:
-            self.register_buffer('expr_prior_weight',
-                                 torch.tensor(expr_prior_weight, dtype=dtype))
-            self.register_buffer('jaw_prior_weight',
-                                 torch.tensor(jaw_prior_weight, dtype=dtype))
-        if self.interpenetration:
-            self.register_buffer('coll_loss_weight',
-                                 torch.tensor(coll_loss_weight, dtype=dtype))
 
         self.register_buffer('s2m_weight',
                              torch.tensor(s2m_weight, dtype=dtype))
         self.register_buffer('m2s_weight',
                              torch.tensor(m2s_weight, dtype=dtype))
-
-        self.sdf_penetration = sdf_penetration
-        if self.sdf_penetration:
-            self.sdf = sdf
-            self.sdf_normals = sdf_normals
-            self.voxel_size = voxel_size
-            self.grid_min = grid_min
-            self.grid_max = grid_max
-            self.register_buffer('sdf_penetration_weight',
-                                 torch.tensor(sdf_penetration_weight, dtype=dtype))
-        self.contact = contact
-        if self.contact:
-            self.contact_verts_ids = contact_verts_ids
-            self.rho_contact = rho_contact
-            self.contact_angle = contact_angle
-            self.register_buffer('contact_loss_weight',
-                                 torch.tensor(contact_loss_weight, dtype=dtype))
-            self.contact_robustifier = utils.GMoF_unscaled(rho=self.rho_contact)
 
     def reset_loss_weights(self, loss_weight_dict):
             for key in loss_weight_dict:
@@ -456,7 +394,6 @@ class SMPLifyLoss(nn.Module):
                 body_model_faces, joint_weights,
                 use_vposer=False, pose_embedding=None,
                 scan_tensor=None, scan_normal=None, keypoints3d=None, visualize=False,
-                scene_v=None, scene_vn=None, scene_f=None,ftov=None,
                 opt_idx=None,
                 **kwargs):
         projected_joints = camera(body_model_output.joints)
