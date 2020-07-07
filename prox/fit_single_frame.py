@@ -427,7 +427,8 @@ def fit_single_frame(img,
                 
                 closure = monitor.create_fitting_closure(
                     body_optimizer, body_model,
-                    camera=camera, gt_joints=gt_joints,
+                    camera=camera, 
+                    gt_joints=gt_joints,
                     joints_conf=joints_conf,
                     joint_weights=joint_weights,
                     loss=loss, create_graph=body_create_graph,
@@ -519,4 +520,18 @@ def fit_single_frame(img,
             out_mesh = trimesh.Trimesh(vertices, body_model.faces, process=False)
             out_mesh.export(mesh_fn)
 
-    return {'pose_embedding': pose_embedding, 'body_pose': body_pose}
+    return {'body_pose': body_pose,
+    
+            'camera' : camera,
+
+            'body_model' : body_model,
+            'pose_embedding': pose_embedding,
+            # 'vposer': vposer,
+
+            'gt_joints': gt_joints,
+            'joint_weights': joint_weights,
+
+            'scan_tensor': scan_tensor,
+            'scan_normal': scan_normal,
+            's2m_weights': s2m_weights
+            }

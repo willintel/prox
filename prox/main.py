@@ -242,6 +242,7 @@ def main(**args):
         finally: 
             pass
 
+    fit_results = []
     for idx, data in enumerate(dataset_obj):
 
         img = data['img']
@@ -312,9 +313,12 @@ def main(**args):
                              previous_result=None,
                              **args)
 
+            fit_results.append(previous_result)
+
             fn = "idx{}-person_id{}.ply".format(idx, person_id)
             export_body_model(body_model, previous_result['body_pose'], fn)
         break
+    torch.save(fit_results, "fit_results.torch.bin")
         
     elapsed = time.time() - start
     time_msg = time.strftime('%H hours, %M minutes, %S seconds',
