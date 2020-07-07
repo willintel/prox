@@ -226,10 +226,9 @@ class Projection():
                     #keypoints3d[i][2] += 0.05 # adding 5cm depth
                 kp_uvs.append(uv)
 
-
-        print("kp_ids:", kp_ids)
-        print("keypoints3d:", keypoints3d)
-        print("kps:", kps)
+        # print("kp_ids:", kp_ids)
+        # print("keypoints3d:", keypoints3d)
+        # print("kps:", kps)
             
         if mask_on_color:
             valid_mask_idx = valid_idx.copy()

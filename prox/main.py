@@ -295,12 +295,8 @@ def main(**args):
             # print("left_hand_prior", left_hand_prior)
             # break
             previous_result = fit_single_frame(img, keypoints[[person_id]], init_trans, scan,
-                             cam2world_dir=cam2world_dir,
-                             scene_dir=scene_dir,
-                             sdf_dir=sdf_dir,
-                             body_segments_dir=body_segments_dir,
-                             scene_name=scene_name,
                              body_model=body_model,
+                             body_segments_dir=body_segments_dir,
                              camera=camera,
                              joint_weights=joint_weights,
                              dtype=dtype,
@@ -313,16 +309,12 @@ def main(**args):
                              shape_prior=shape_prior,
                              body_pose_prior=body_pose_prior,
                              angle_prior=angle_prior,
-                             left_hand_prior=None,
-                             right_hand_prior=None,
-                             expr_prior=None,
-                             jaw_prior=None,
                              previous_result=None,
                              **args)
 
             fn = "idx{}-person_id{}.ply".format(idx, person_id)
             export_body_model(body_model, previous_result['body_pose'], fn)
-        # break
+        break
         
     elapsed = time.time() - start
     time_msg = time.strftime('%H hours, %M minutes, %S seconds',
@@ -351,11 +343,8 @@ if __name__ == "__main__":
     
     MODELS_FOLDER="/media/psf/Home/data/mevolve/prox"
     PROX_SRC_PATH = "/home/william/dev/thirdparty/prox"
-#    FIT_DATA_FOLDER = fdata.get_root_folder()
-#    print("FIT_DATA_FOLDER:", FIT_DATA_FOLDER)
-    FIT_DATA_FOLDER = "/media/psf/Home/data/mevolve/inhome-test-rig/2020_05_21/d435-dynamic-human_4shot-21_08_33/snapshots/fit-data"
-    FIT_CONFIG = "SMPLifyD-d435.yaml"
     FIT_DATA_FOLDER = "/media/psf/Home/data/mevolve/inhome-test-rig/2020_06_16/d455-dynamic-human-4shot-00_35_05/016122250304/snapshots/fit-data"
+    FIT_DATA_FOLDER = "/media/psf/Home/data/mevolve/inhome-test-rig/2020_07_02/d455-dynamic-human-4shot_angled-22_50_49/016122250304/snapshots/fit-data"
     FIT_CONFIG = "SMPLifyD-d455.yaml"
     argv = [
 #        "python3", os.path.join(PROX_SRC_PATH, "prox", "main.py"),

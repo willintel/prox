@@ -314,19 +314,17 @@ def create_loss(loss_type='smplify', **kwargs):
 
 class SMPLifyLoss(nn.Module):
 
-    def __init__(self, search_tree=None,
-                 pen_distance=None, tri_filtering_module=None,
+    def __init__(self,
                  rho=100,
                  body_pose_prior=None,
                  shape_prior=None,
                  angle_prior=None,
                  use_joints_conf=True,
-                 interpenetration=True, dtype=torch.float32,
+                 dtype=torch.float32,
                  data_weight=1.0,
                  body_pose_weight=0.0,
                  shape_weight=0.0,
                  bending_prior_weight=0.0,
-                 coll_loss_weight=0.0,
                  s2m=False,
                  m2s=False,
                  rho_s2m=1,
@@ -377,6 +375,7 @@ class SMPLifyLoss(nn.Module):
                              torch.tensor(s2m_weight, dtype=dtype))
         self.register_buffer('m2s_weight',
                              torch.tensor(m2s_weight, dtype=dtype))
+        pass
 
     def reset_loss_weights(self, loss_weight_dict):
             for key in loss_weight_dict:

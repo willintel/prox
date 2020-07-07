@@ -52,16 +52,12 @@ def fit_single_frame(img,
                      keypoints,
                      init_trans,
                      scan,
-                     scene_name,
                      body_model,
+                     body_segments_dir,
                      camera,
                      joint_weights,
                      body_pose_prior,
-                     jaw_prior,
-                     left_hand_prior,
-                     right_hand_prior,
                      shape_prior,
-                     expr_prior,
                      angle_prior,
                      result_fn='out.pkl',
                      mesh_fn='out.obj',
@@ -70,24 +66,10 @@ def fit_single_frame(img,
                      loss_type='smplify',
                      use_cuda=True,
                      init_joints_idxs=(9, 12, 2, 5),
-                     use_face=True,
-                     use_hands=True,
                      data_weights=None,
                      body_pose_prior_weights=None,
-                     hand_pose_prior_weights=None,
-                     jaw_pose_prior_weights=None,
                      shape_weights=None,
-                     expr_weights=None,
-                     hand_joints_weights=None,
-                     face_joints_weights=None,
                      depth_loss_weight=1e2,
-                     interpenetration=True,
-                     coll_loss_weights=None,
-                     df_cone_height=0.5,
-                     penalize_outside=True,
-                     max_collisions=8,
-                     point2plane=False,
-                     part_segm_fn='',
                      focal_length_x=5000.,
                      focal_length_y=5000.,
                      side_view_thsh=25.,
@@ -118,20 +100,6 @@ def fit_single_frame(img,
                      init_mode=None,
                      trans_opt_stages=None,
                      viz_mode='mv',
-                     #penetration
-                     sdf_penetration=False,
-                     sdf_penetration_weights=0.0,
-                     sdf_dir=None,
-                     cam2world_dir=None,
-                     #contact
-                     contact=False,
-                     rho_contact=1.0,
-                     contact_loss_weights=None,
-                     contact_angle=15,
-                     contact_body_parts=None,
-                     body_segments_dir=None,
-                     load_scene=False,
-                     scene_dir=None,
                      previous_result=None,
                      **kwargs):
     assert batch_size == 1, 'PyTorch L-BFGS only supports batch_size == 1'
@@ -160,20 +128,6 @@ def fit_single_frame(img,
     assert (len(data_weights) ==
             len(body_pose_prior_weights)), msg
 
-    if use_hands:
-        if hand_pose_prior_weights is None:
-            hand_pose_prior_weights = [1e2, 5 * 1e1, 1e1, .5 * 1e1]
-        msg = ('Number of Body pose prior weights does not match the' +
-               ' number of hand pose prior weights')
-        assert (len(hand_pose_prior_weights) ==
-                len(body_pose_prior_weights)), msg
-        if hand_joints_weights is None:
-            hand_joints_weights = [0.0, 0.0, 0.0, 1.0]
-            msg = ('Number of Body pose prior weights does not match the' +
-                   ' number of hand joint distance weights')
-            assert (len(hand_joints_weights) ==
-                    len(body_pose_prior_weights)), msg
-
     if shape_weights is None:
         shape_weights = [1e2, 5 * 1e1, 1e1, .5 * 1e1]
     msg = ('Number of Body pose prior weights = {} does not match the' +
@@ -182,41 +136,6 @@ def fit_single_frame(img,
             len(body_pose_prior_weights)), msg.format(
                 len(shape_weights),
                 len(body_pose_prior_weights))
-
-    if use_face:
-        if jaw_pose_prior_weights is None:
-            jaw_pose_prior_weights = [[x] * 3 for x in shape_weights]
-        else:
-            jaw_pose_prior_weights = map(lambda x: map(float, x.split(',')),
-                                         jaw_pose_prior_weights)
-            jaw_pose_prior_weights = [list(w) for w in jaw_pose_prior_weights]
-        msg = ('Number of Body pose prior weights does not match the' +
-               ' number of jaw pose prior weights')
-        assert (len(jaw_pose_prior_weights) ==
-                len(body_pose_prior_weights)), msg
-
-        if expr_weights is None:
-            expr_weights = [1e2, 5 * 1e1, 1e1, .5 * 1e1]
-        msg = ('Number of Body pose prior weights = {} does not match the' +
-               ' number of Expression prior weights = {}')
-        assert (len(expr_weights) ==
-                len(body_pose_prior_weights)), msg.format(
-                    len(body_pose_prior_weights),
-                    len(expr_weights))
-
-        if face_joints_weights is None:
-            face_joints_weights = [0.0, 0.0, 0.0, 1.0]
-        msg = ('Number of Body pose prior weights does not match the' +
-               ' number of face joint distance weights')
-        assert (len(face_joints_weights) ==
-                len(body_pose_prior_weights)), msg
-
-    if coll_loss_weights is None:
-        coll_loss_weights = [0.0] * len(body_pose_prior_weights)
-    msg = ('Number of Body pose prior weights does not match the' +
-           ' number of collision loss weights')
-    assert (len(coll_loss_weights) ==
-            len(body_pose_prior_weights)), msg
 
     use_vposer = kwargs.get('use_vposer', True)
     vposer, pose_embedding = [None, ] * 2
@@ -265,48 +184,20 @@ def fit_single_frame(img,
     grid_min = None
     grid_max = None
     voxel_size = None
-
-    fn = os.path.join(cam2world_dir, scene_name + '.json')
-    if osp.exists(fn):
-        with open(os.path.join(cam2world_dir, scene_name + '.json'), 'r') as f:
-            cam2world = np.array(json.load(f))
-    else:
-        cam2world = np.eye(4)
+    
+    cam2world = np.eye(4)
     R = torch.tensor(cam2world[:3, :3].reshape(3, 3), dtype=dtype, device=device)
     t = torch.tensor(cam2world[:3, 3].reshape(1, 3), dtype=dtype, device=device)
-
-    # Create the search tree
-    search_tree = None
-    pen_distance = None
-    filter_faces = None
-
-    # load vertix ids of contact parts
-    contact_verts_ids  = ftov = None
-
-    # Read the scene scan if any
-    scene_v = scene_vn = scene_f = None
 
     # Weights used for the pose prior and the shape prior
     opt_weights_dict = {'data_weight': data_weights,
                         'body_pose_weight': body_pose_prior_weights,
                         'shape_weight': shape_weights}
-    if use_face:
-        opt_weights_dict['face_weight'] = face_joints_weights
-        opt_weights_dict['expr_prior_weight'] = expr_weights
-        opt_weights_dict['jaw_prior_weight'] = jaw_pose_prior_weights
-    if use_hands:
-        opt_weights_dict['hand_weight'] = hand_joints_weights
-        opt_weights_dict['hand_prior_weight'] = hand_pose_prior_weights
-    if interpenetration:
-        opt_weights_dict['coll_loss_weight'] = coll_loss_weights
+    
     if s2m:
         opt_weights_dict['s2m_weight'] = s2m_weights
     if m2s:
         opt_weights_dict['m2s_weight'] = m2s_weights
-    if sdf_penetration:
-        opt_weights_dict['sdf_penetration_weight'] = sdf_penetration_weights
-    if contact:
-        opt_weights_dict['contact_loss_weight'] = contact_loss_weights
 
     keys = opt_weights_dict.keys()
     opt_weights = [dict(zip(keys, vals)) for vals in
@@ -360,38 +251,19 @@ def fit_single_frame(img,
                                joint_weights=joint_weights,
                                rho=rho,
                                use_joints_conf=use_joints_conf,
-                               use_face=use_face, use_hands=use_hands,
                                vposer=vposer,
                                pose_embedding=pose_embedding,
                                body_pose_prior=body_pose_prior,
                                shape_prior=shape_prior,
                                angle_prior=angle_prior,
-                               expr_prior=expr_prior,
-                               left_hand_prior=left_hand_prior,
-                               right_hand_prior=right_hand_prior,
-                               jaw_prior=jaw_prior,
-                               interpenetration=interpenetration,
-                               pen_distance=pen_distance,
-                               search_tree=search_tree,
-                               tri_filtering_module=filter_faces,
                                s2m=s2m,
                                m2s=m2s,
                                rho_s2m=rho_s2m,
                                rho_m2s=rho_m2s,
                                head_mask=head_mask,
                                body_mask=body_mask,
-                               sdf_penetration=sdf_penetration,
-                               voxel_size=voxel_size,
-                               grid_min=grid_min,
-                               grid_max=grid_max,
-                               sdf=sdf,
-                               sdf_normals=sdf_normals,
                                R=R,
                                t=t,
-                               contact=contact,
-                               contact_verts_ids=contact_verts_ids,
-                               rho_contact=rho_contact,
-                               contact_angle=contact_angle,
                                dtype=dtype,
                                **kwargs)
     loss = loss.to(device=device)
@@ -543,10 +415,6 @@ def fit_single_frame(img,
 
                 curr_weights['bending_prior_weight'] = (
                     3.17 * curr_weights['body_pose_weight'])
-                if use_hands:
-                    joint_weights[:, 25:76] = curr_weights['hand_weight']
-                if use_face:
-                    joint_weights[:, 76:] = curr_weights['face_weight']
                 loss.reset_loss_weights(curr_weights)
 
                 # only take 10000 points in scan
@@ -568,7 +436,6 @@ def fit_single_frame(img,
                     scan_tensor=scan_tensor[:, ids, :],
                     scan_normal=  None if (scan_normal is None) else scan_normal[:, ids, :],
                     keypoints3d=keypoints3d,
-                    scene_v=scene_v, scene_vn=scene_vn, scene_f=scene_f,ftov=ftov,
                     return_verts=True, return_full_pose=True,
                     opt_idx=opt_idx)
 
@@ -580,7 +447,8 @@ def fit_single_frame(img,
                     body_optimizer,
                     closure, final_params,
                     body_model,
-                    pose_embedding=pose_embedding, vposer=vposer,
+                    pose_embedding=pose_embedding,
+                    vposer=vposer,
                     use_vposer=use_vposer)
 
                 export_body_model(body_model, "./body_model-or_idx{}-opt_idx{}.ply".format(or_idx, opt_idx))
@@ -650,77 +518,5 @@ def fit_single_frame(img,
             print("vertices:", vertices.shape, " mesh_fn:", mesh_fn)
             out_mesh = trimesh.Trimesh(vertices, body_model.faces, process=False)
             out_mesh.export(mesh_fn)
-        
-
-    if render_results:
-        import pyrender
-
-        # common
-        H, W = 1080, 1920
-        camera_center = np.array([951.30, 536.77])
-        camera_pose = np.eye(4)
-        camera_pose = np.array([1.0, -1.0, -1.0, 1.0]).reshape(-1, 1) * camera_pose
-        camera = pyrender.camera.IntrinsicsCamera(
-            fx=1060.53, fy=1060.38,
-            cx=camera_center[0], cy=camera_center[1])
-        light = pyrender.DirectionalLight(color=np.ones(3), intensity=2.0)
-
-        material = pyrender.MetallicRoughnessMaterial(
-            metallicFactor=0.0,
-            alphaMode='OPAQUE',
-            baseColorFactor=(1.0, 1.0, 0.9, 1.0))
-        body_mesh = pyrender.Mesh.from_trimesh(
-            out_mesh, material=material)
-
-        ## rendering body
-        img = img.detach().cpu().numpy()
-        H, W, _ = img.shape
-
-        scene = pyrender.Scene(bg_color=[0.0, 0.0, 0.0, 0.0],
-                               ambient_light=(0.3, 0.3, 0.3))
-        scene.add(camera, pose=camera_pose)
-        scene.add(light, pose=camera_pose)
-        # for node in light_nodes:
-        #     scene.add_node(node)
-
-        scene.add(body_mesh, 'mesh')
-
-        r = pyrender.OffscreenRenderer(viewport_width=W,
-                                       viewport_height=H,
-                                       point_size=1.0)
-        color, _ = r.render(scene, flags=pyrender.RenderFlags.RGBA)
-        color = color.astype(np.float32) / 255.0
-
-        valid_mask = (color[:, :, -1] > 0)[:, :, np.newaxis]
-        input_img = img
-        output_img = (color[:, :, :-1] * valid_mask +
-                      (1 - valid_mask) * input_img)
-
-        img = pil_img.fromarray((output_img * 255).astype(np.uint8))
-        img.save(out_img_fn)
-
-        ##redering body+scene
-        body_mesh = pyrender.Mesh.from_trimesh(
-            out_mesh, material=material)
-        static_scene = trimesh.load(osp.join(scene_dir, scene_name + '.ply'))
-        trans = np.linalg.inv(cam2world)
-        static_scene.apply_transform(trans)
-
-        static_scene_mesh = pyrender.Mesh.from_trimesh(
-            static_scene)
-
-        scene = pyrender.Scene()
-        scene.add(camera, pose=camera_pose)
-        scene.add(light, pose=camera_pose)
-
-        scene.add(static_scene_mesh, 'mesh')
-        scene.add(body_mesh, 'mesh')
-
-        r = pyrender.OffscreenRenderer(viewport_width=W,
-                                       viewport_height=H)
-        color, _ = r.render(scene)
-        color = color.astype(np.float32) / 255.0
-        img = pil_img.fromarray((color * 255).astype(np.uint8))
-        img.save(body_scene_rendering_fn)
 
     return {'pose_embedding': pose_embedding, 'body_pose': body_pose}
