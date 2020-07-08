@@ -11,6 +11,8 @@ from psbody.mesh import Mesh
 from human_body_prior.tools.model_loader import load_vposer
 import misc_utils as utils
 
+import icp
+
 def calc_mean_betas(results):
     mean_betas = torch.zeros(results[0]['body_model'].betas.shape, dtype=torch.float, device=device)
     for e in results:
@@ -25,7 +27,7 @@ def parameterize_results(results):
     common_betas = torch.nn.Parameter(common_betas)
 
     for e in results:
-        e['body_model'].betas = common_betas
+        # e['body_model'].betas = common_betas
         e['pose_embedding'] = torch.tensor(e['pose_embedding'], requires_grad=True, dtype=torch.float, device=device)
 
         e['gt_joints'] = torch.tensor(e['gt_joints'], requires_grad=False, dtype=torch.float, device=device)
@@ -48,6 +50,34 @@ def get_body_model_output(body_model, pose_embedding, vposer):
                                    return_full_pose=True)
     return body_model_output
 
+def get_final_params(results):
+    final_params = []
+    for e in results:
+        body_params = list(e['body_model'].parameters())
+        body_params = list(filter(lambda x: x.requires_grad, body_params))
+        final_params += body_params
+        final_params.append(e['pose_embedding'])
+    return final_params
+
+
+def export_body_model(body_model, pose_embedding, vposer, fn):
+    # return
+    try:
+        import trimesh
+        bm_output = get_body_model_output(body_model, pose_embedding, vposer)
+        
+        vertices_np = bm_output.vertices.detach().cpu().numpy().squeeze()
+        body = trimesh.Trimesh(vertices_np, body_model.faces, process=False)
+        body.export(fn)
+    finally: 
+        pass
+
+def export_pointcloud(scan_tensor, fn):
+    import trimesh
+    m = trimesh.Trimesh(scan_tensor[0].detach().cpu().numpy(), None, process=False)
+    m.export(fn)
+    pass
+
 def calc_loss(results, vposer):
     total_joint_loss = 0.0
     total_s2m_loss = 0.0
@@ -57,7 +87,8 @@ def calc_loss(results, vposer):
     for e in results:
         camera = e['camera']
         body_model = e['body_model']
-        weights = e['joint_weights']
+        joint_weights = e['joint_weights']
+        weights = joint_weights.unsqueeze(dim=-1)
         gt_joints = e['gt_joints']
         pose_embedding = e['pose_embedding']
 
@@ -81,7 +112,7 @@ def calc_loss(results, vposer):
         total_joint_loss += joint_loss
 
         vertices_np = body_model_output.vertices.detach().cpu().numpy().squeeze()
-        body_faces_np = body_model_faces.detach().cpu().numpy().reshape(-1, 3)
+        body_faces_np = body_model.faces.reshape(-1, 3)
         m = Mesh(v=vertices_np, f=body_faces_np)
 
         (vis, n_dot) = visibility_compute(v=m.v, f=m.f, cams=np.array([[0.0, 0.0, 0.0]]))
@@ -97,28 +128,6 @@ def calc_loss(results, vposer):
 
     print("total_joint_loss:", total_joint_loss, " total_s2m_loss:", total_s2m_loss)
     return total_joint_loss + total_s2m_loss
-
-def get_final_params(results):
-    final_params = []
-    for e in results:
-        body_params = list(e['body_model'].parameters())
-        body_params = list(filter(lambda x: x.requires_grad, body_params))
-        final_params += body_params
-        final_params.append(e['pose_embedding'])
-    return final_params
-
-
-def export_body_model(body_model, pose_embedding, vposer, fn):
-    # return
-    try:
-        import trimesh
-        bm_output = get_body_model_output(body_model, pose_embedding, vposer)
-        
-        vertices_np = bm_output.vertices.detach().cpu().numpy().squeeze()
-        body = trimesh.Trimesh(vertices_np, bm_output.faces, process=False)
-        body.export(fn)
-    finally: 
-        pass
 
 
 if __name__ == "__main__":
@@ -138,7 +147,7 @@ if __name__ == "__main__":
     vposer.eval()
 
     lr = 1e-1
-    n_epochs = 20
+    n_epochs = 3
 
     # Defines a SGD optimizer to update the parameters
     params = get_final_params(results)
@@ -151,9 +160,12 @@ if __name__ == "__main__":
         optimizer.zero_grad()
 
         for n in range(len(results)):
+            e = results[n]
             fn = "fit_multiple_farmes-epoch{}_frame{}.ply".format(epoch, n)
             print("Export mesh to ({})".format(fn))
             export_body_model(e['body_model'], e['pose_embedding'], vposer, fn)
-
+            fn = "fit_multiple_farmes-epoch{}_frame{}-pointcloud.ply".format(epoch, n)
+            export_pointcloud(e['scan_tensor'], fn)
+        # break
     
 
