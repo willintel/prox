@@ -521,17 +521,22 @@ def fit_single_frame(img,
             out_mesh.export(mesh_fn)
 
     return {'body_pose': body_pose,
-    
+
             'camera' : camera,
 
-            'body_model' : body_model,
-            'pose_embedding': pose_embedding,
+            'body_model' : pickle.loads(pickle.dumps(body_model)),
+            'body.transl': body_model.transl.detach().cpu().numpy().copy(),
+            'body.body_pose': body_pose.detach().cpu().numpy().copy(),
+            'body.betas': body_model.betas.detach().cpu().numpy().copy(),
+            'body.global_orient': body_model.global_orient.detach().cpu().numpy().copy(),
+            
+            'pose_embedding': pose_embedding.detach().cpu().numpy().copy(),
             # 'vposer': vposer,
 
-            'gt_joints': gt_joints,
+            'gt_joints': gt_joints.detach().cpu().numpy().copy(),
             'joint_weights': joint_weights,
 
-            'scan_tensor': scan_tensor,
-            'scan_normal': scan_normal,
+            'scan_tensor': scan_tensor.detach().cpu().numpy().copy(),
+            'scan_normal': scan_normal.detach().cpu().numpy().copy(),
             's2m_weights': s2m_weights
             }

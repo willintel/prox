@@ -317,8 +317,9 @@ def main(**args):
 
             fn = "idx{}-person_id{}.ply".format(idx, person_id)
             export_body_model(body_model, previous_result['body_pose'], fn)
-        break
-    torch.save(fit_results, "fit_results.torch.bin")
+        # break
+
+    torch.save(fit_results, "separate_fit_result-{}frames.torch.bin".format(len(fit_results)))
         
     elapsed = time.time() - start
     time_msg = time.strftime('%H hours, %M minutes, %S seconds',

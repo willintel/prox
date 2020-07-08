@@ -27,7 +27,10 @@ def parameterize_results(results):
     common_betas = torch.nn.Parameter(common_betas)
 
     for e in results:
-        # e['body_model'].betas = common_betas
+        e['body_model'].betas = common_betas
+        # e['body_model'].betas.requires_grad = False
+        # e['body_model'].transl.requires_grad = True
+        # e['body_model'].global_orient.requires_grad = False
         e['pose_embedding'] = torch.tensor(e['pose_embedding'], requires_grad=True, dtype=torch.float, device=device)
 
         e['gt_joints'] = torch.tensor(e['gt_joints'], requires_grad=False, dtype=torch.float, device=device)
@@ -59,7 +62,7 @@ def get_final_params(results):
         final_params.append(e['pose_embedding'])
     return final_params
 
-
+@torch.no_grad()
 def export_body_model(body_model, pose_embedding, vposer, fn):
     # return
     try:
@@ -103,11 +106,16 @@ def calc_loss(results, vposer):
 
         # Calculate the distance of the projected joints from
         # the ground truth 2D detections
+        # print("gt_joints:", gt_joints)
+        # print("projected_joints:", projected_joints)
+        # diff = gt_joints - projected_joints
+        # print("diff:", torch.sum(diff**2))
         joint_diff = joint_robustifier(gt_joints - projected_joints)
+        # print("joint_diff:", torch.sum(joint_diff))
         for i in range(gt_joints.shape[1]):
             if gt_joints[0,i,0].numpy() == 0.0 or gt_joints[0,i,1].numpy() == 0.0:
                 joint_diff[0,i,:] = torch.tensor([0.0, 0.0])
-        joint_loss = (torch.sum(weights ** 2 * joint_diff)) * 0.01
+        joint_loss = torch.sum(weights ** 2 * joint_diff)
 
         total_joint_loss += joint_loss
 
@@ -117,23 +125,23 @@ def calc_loss(results, vposer):
 
         (vis, n_dot) = visibility_compute(v=m.v, f=m.f, cams=np.array([[0.0, 0.0, 0.0]]))
         vis = vis.squeeze()
-        
+
         s2m_dist = icp.dist_icp(scan_tensor, 
-                                body_model_output.vertices[:, np.where(vis > 0)[0], :],
-                                src_normal=scan_normal)
+                               body_model_output.vertices[:, np.where(vis > 0)[0], :],
+                               src_normal=scan_normal)
         s2m_dist = s2m_robustifier(s2m_dist) #(icp_dist.sqrt())
-        s2m_dist = s2m_weights[-1] * s2m_dist.sum()
+        s2m_dist = s2m_weights[-1] * torch.sum(s2m_dist)
 
         total_s2m_loss += s2m_dist
 
     print("total_joint_loss:", total_joint_loss, " total_s2m_loss:", total_s2m_loss)
-    return total_joint_loss + total_s2m_loss
+    return (total_joint_loss + total_s2m_loss)
 
 
 if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    fn = "/home/william/dev/thirdparty/prox/separate_fit_results.torch.bin"
+    fn = "/home/william/dev/thirdparty/prox/separate_fit_result-4frames.torch.bin"
     print("Load separate fit results from ({})".format(fn))
     results = torch.load(fn)
     parameterize_results(results)
@@ -146,26 +154,37 @@ if __name__ == "__main__":
     vposer = vposer.to(device=device)
     vposer.eval()
 
-    lr = 1e-1
-    n_epochs = 3
+    lr = 1e-3
+    maxiters = 20
+    n_epochs = 100
 
     # Defines a SGD optimizer to update the parameters
     params = get_final_params(results)
-    optimizer = optim.SGD(params, lr=lr)
+    # optimizer = optim.SGD(params, lr=lr, momentum=0.9,
+    #                       weight_decay=0.0,
+    #                       nesterov=True)
+    optimizer = optim.Adam(params, lr=lr, betas=(0.9, 0.999),
+                           weight_decay=0.0)
+    # optimizer = optim.LBFGS(params, lr=lr, max_iter=maxiters)
 
     for epoch in range(n_epochs):
+        print("\n\nEpoch{} ============================================================".format(epoch))
         loss = calc_loss(results, vposer)
         loss.backward()    
         optimizer.step()
-        optimizer.zero_grad()
 
         for n in range(len(results)):
             e = results[n]
+            bm = e['body_model']
+            print("transl:", bm.transl, " grad:", bm.transl.grad)
+            print("global_orient:", bm.global_orient, " grad:", bm.global_orient.grad)
             fn = "fit_multiple_farmes-epoch{}_frame{}.ply".format(epoch, n)
             print("Export mesh to ({})".format(fn))
             export_body_model(e['body_model'], e['pose_embedding'], vposer, fn)
             fn = "fit_multiple_farmes-epoch{}_frame{}-pointcloud.ply".format(epoch, n)
             export_pointcloud(e['scan_tensor'], fn)
+        
+        optimizer.zero_grad()
         # break
     
 

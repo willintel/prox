@@ -3,10 +3,10 @@ model_folder: 'models'
 vposer_ckpt: "models/vposer_v1_0/"
 part_segm_fn: "models/smplx_parts_segm.pkl"
 
-focal_length_x: 1060.5317
-focal_length_y: 1060.3856
-camera_center_x: 951.2999
-camera_center_y: 536.7704
+focal_length_x: 637.7139892578125
+focal_length_y: 637.7139892578125
+camera_center_x: 650.2893676757812
+camera_center_y: 353.23907470703125
 flip: False
 camera_mode: 'fixed'
 
