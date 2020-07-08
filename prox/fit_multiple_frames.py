@@ -154,24 +154,34 @@ if __name__ == "__main__":
     vposer = vposer.to(device=device)
     vposer.eval()
 
-    lr = 1e-3
+    lr = 1.0 #1e-3
     maxiters = 20
     n_epochs = 100
 
-    # Defines a SGD optimizer to update the parameters
     params = get_final_params(results)
+    # NOTE: SGB doesn't work!!! Loss keeps increasing
     # optimizer = optim.SGD(params, lr=lr, momentum=0.9,
     #                       weight_decay=0.0,
     #                       nesterov=True)
-    optimizer = optim.Adam(params, lr=lr, betas=(0.9, 0.999),
-                           weight_decay=0.0)
-    # optimizer = optim.LBFGS(params, lr=lr, max_iter=maxiters)
+    # optimizer = optim.Adam(params, lr=lr, betas=(0.9, 0.999),
+    #                        weight_decay=0.0)
+
+    maxiters = 20
+    n_epochs = 10
+    optimizer = optim.LBFGS(params, lr=lr, max_iter=maxiters)
+
+    def closure():
+        optimizer.zero_grad()
+        loss = calc_loss(results, vposer)
+        loss.backward()
+        return loss
 
     for epoch in range(n_epochs):
         print("\n\nEpoch{} ============================================================".format(epoch))
-        loss = calc_loss(results, vposer)
-        loss.backward()    
-        optimizer.step()
+        # loss = calc_loss(results, vposer)
+        # loss.backward()    
+        optimizer.step(closure)
+
 
         for n in range(len(results)):
             e = results[n]
@@ -184,7 +194,7 @@ if __name__ == "__main__":
             fn = "fit_multiple_farmes-epoch{}_frame{}-pointcloud.ply".format(epoch, n)
             export_pointcloud(e['scan_tensor'], fn)
         
-        optimizer.zero_grad()
+        # optimizer.zero_grad()
         # break
     
 
