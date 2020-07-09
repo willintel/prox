@@ -104,11 +104,6 @@ def main(**args):
         print('Unknown float type {}, exiting!'.format(float_dtype))
         sys.exit(-1)
 
-    use_cuda = args.get('use_cuda', True)
-    if use_cuda and not torch.cuda.is_available():
-        print('CUDA is not available, exiting!')
-        sys.exit(-1)
-
     img_folder = args.pop('img_folder', 'Color')
     dataset_obj = create_dataset(img_folder=img_folder,data_folder=data_folder, keyp_folder=keyp_folder, calib_dir=calib_dir,**args)
 
@@ -163,67 +158,17 @@ def main(**args):
     if hasattr(camera, 'rotation'):
         camera.rotation.requires_grad = False
 
-    use_hands = args.get('use_hands', True)
-    use_face = args.get('use_face', True)
-
     body_pose_prior = create_prior(
         prior_type=args.get('body_prior_type'),
         dtype=dtype,
         **args)
-
-    jaw_prior, expr_prior = None, None
-    if use_face:
-        jaw_prior = create_prior(
-            prior_type=args.get('jaw_prior_type'),
-            dtype=dtype,
-            **args)
-        expr_prior = create_prior(
-            prior_type=args.get('expr_prior_type', 'l2'),
-            dtype=dtype, **args)
-
-    left_hand_prior, right_hand_prior = None, None
-    if use_hands:
-        lhand_args = args.copy()
-        lhand_args['num_gaussians'] = args.get('num_pca_comps')
-        left_hand_prior = create_prior(
-            prior_type=args.get('left_hand_prior_type'),
-            dtype=dtype,
-            use_left_hand=True,
-            **lhand_args)
-
-        rhand_args = args.copy()
-        rhand_args['num_gaussians'] = args.get('num_pca_comps')
-        right_hand_prior = create_prior(
-            prior_type=args.get('right_hand_prior_type'),
-            dtype=dtype,
-            use_right_hand=True,
-            **rhand_args)
 
     shape_prior = create_prior(
         prior_type=args.get('shape_prior_type', 'l2'),
         dtype=dtype, **args)
 
     angle_prior = create_prior(prior_type='angle', dtype=dtype)
-
-    if use_cuda and torch.cuda.is_available():
-        device = torch.device('cuda')
-
-        camera = camera.to(device=device)
-        female_model = female_model.to(device=device)
-        male_model = male_model.to(device=device)
-        if args.get('model_type') != 'smplh':
-            neutral_model = neutral_model.to(device=device)
-        body_pose_prior = body_pose_prior.to(device=device)
-        angle_prior = angle_prior.to(device=device)
-        shape_prior = shape_prior.to(device=device)
-        if use_face:
-            expr_prior = expr_prior.to(device=device)
-            jaw_prior = jaw_prior.to(device=device)
-        if use_hands:
-            left_hand_prior = left_hand_prior.to(device=device)
-            right_hand_prior = right_hand_prior.to(device=device)
-    else:
-        device = torch.device('cpu')
+    device = torch.device('cpu')
 
     # A weight for every joint of the model
     joint_weights = dataset_obj.get_joint_weights().to(device=device,
