@@ -177,13 +177,6 @@ def fit_single_frame(img,
         if scan.get('normals') is not None:
             scan_normal = torch.tensor(scan.get('normals'), device=device, dtype=dtype).unsqueeze(0)
         keypoints3d = torch.tensor(scan.get('keypoints3d'), device=device, dtype=dtype).unsqueeze(0)
-
-    # load pre-computed signed distance field
-    sdf = None
-    sdf_normals = None
-    grid_min = None
-    grid_max = None
-    voxel_size = None
     
     cam2world = np.eye(4)
     R = torch.tensor(cam2world[:3, :3].reshape(3, 3), dtype=dtype, device=device)
@@ -222,22 +215,7 @@ def fit_single_frame(img,
 
     edge_indices = kwargs.get('body_tri_idxs')
 
-    # which initialization mode to choose: similar traingles, mean of the scan or the average of both
-    if init_mode == 'scan':
-        init_t = init_trans
-    elif init_mode == 'both':
-        init_t = (init_trans.to(device) + fitting.guess_init(body_model, gt_joints, edge_indices,
-                                    use_vposer=use_vposer, vposer=vposer,
-                                    pose_embedding=pose_embedding,
-                                    model_type=kwargs.get('model_type', 'smpl'),
-                                    focal_length=focal_length_x, dtype=dtype) ) /2.0
-
-    else:
-        init_t = fitting.guess_init(body_model, gt_joints, edge_indices,
-                                    use_vposer=use_vposer, vposer=vposer,
-                                    pose_embedding=pose_embedding,
-                                    model_type=kwargs.get('model_type', 'smpl'),
-                                    focal_length=focal_length_x, dtype=dtype)
+    init_t = init_trans
 
     camera_loss = fitting.create_loss('camera_init',
                                       trans_estimation=init_t,
@@ -275,24 +253,8 @@ def fit_single_frame(img,
 
         H, W, _ = img.shape
         print("camera_mode:", camera_mode, " init_t:", init_t)
-        # Reset the parameters to estimate the initial translation of the
-        # body model
-        if camera_mode == 'moving':
-            body_model.reset_params(body_pose=body_mean_pose)
-            # Update the value of the translation of the camera as well as
-            # the image center.
-            with torch.no_grad():
-                camera.translation[:] = init_t.view_as(camera.translation)
-                camera.center[:] = torch.tensor([W, H], dtype=dtype) * 0.5
-
-            # Re-enable gradient calculation for the camera translation
-            camera.translation.requires_grad = True
-
-            camera_opt_params = [camera.translation, body_model.global_orient]
-
-        elif camera_mode == 'fixed':
-            body_model.reset_params(body_pose=body_mean_pose, transl=init_t)
-            camera_opt_params = [body_model.transl, body_model.global_orient]
+        body_model.reset_params(body_pose=body_mean_pose, transl=init_t)
+        camera_opt_params = [body_model.transl, body_model.global_orient]
 
         # If the distance between the 2D shoulders is smaller than a
         # predefined threshold then try 2 fits, the initial one and a 180
@@ -355,8 +317,6 @@ def fit_single_frame(img,
         export_body_model(body_model, "./body_model-cam_after.ply")
 
         if interactive:
-            if use_cuda and torch.cuda.is_available():
-                torch.cuda.synchronize()
             tqdm.write('Camera initialization done after {:.4f}'.format(
                 time.time() - camera_init_start))
             tqdm.write('Camera initialization final loss {:.4f}'.format(
@@ -441,8 +401,6 @@ def fit_single_frame(img,
                     opt_idx=opt_idx)
 
                 if interactive:
-                    if use_cuda and torch.cuda.is_available():
-                        torch.cuda.synchronize()
                     stage_start = time.time()
                 final_loss_val = monitor.run_fitting(
                     body_optimizer,
@@ -525,13 +483,7 @@ def fit_single_frame(img,
             'camera' : camera,
 
             'body_model' : pickle.loads(pickle.dumps(body_model)),
-            'body.transl': body_model.transl.detach().cpu().numpy().copy(),
-            'body.body_pose': body_pose.detach().cpu().numpy().copy(),
-            'body.betas': body_model.betas.detach().cpu().numpy().copy(),
-            'body.global_orient': body_model.global_orient.detach().cpu().numpy().copy(),
-            
             'pose_embedding': pose_embedding.detach().cpu().numpy().copy(),
-            # 'vposer': vposer,
 
             'gt_joints': gt_joints.detach().cpu().numpy().copy(),
             'joint_weights': joint_weights,
