@@ -245,6 +245,8 @@ def fit_single_frame(img,
                                dtype=dtype,
                                **kwargs)
     loss = loss.to(device=device)
+    mesh_dir = os.path.dirname(mesh_fn)
+    prox_result_dir = os.path.join(mesh_dir, "..", "..", "..")
 
     with fitting.FittingMonitor(
             batch_size=batch_size, visualize=visualize, viz_mode=viz_mode, **kwargs) as monitor:
@@ -263,6 +265,7 @@ def fit_single_frame(img,
                                    gt_joints[:, right_shoulder_idx])
         try_both_orient = shoulder_dist.item() < side_view_thsh
 
+        print("kwargs:", kwargs)
         camera_optimizer, camera_create_graph = optim_factory.create_optimizer(
             camera_opt_params,
             **kwargs)
@@ -299,7 +302,7 @@ def fit_single_frame(img,
             keypoints3d=keypoints3d,
             return_full_pose=False, return_verts=False)
 
-        export_body_model(body_model, "./body_model-cam_before.ply")
+        export_body_model(body_model, prox_result_dir+"/body_model-cam_before.ply")
 
         # Step 1: Optimize over the torso joints the camera translation
         # Initialize the computational graph by feeding the initial translation
@@ -314,7 +317,8 @@ def fit_single_frame(img,
 
         # body_model.reset_params(transl=init_t)
         
-        export_body_model(body_model, "./body_model-cam_after.ply")
+        export_body_model(body_model, prox_result_dir + "/body_model-cam_after.ply")
+        return None
 
         if interactive:
             tqdm.write('Camera initialization done after {:.4f}'.format(
@@ -410,7 +414,7 @@ def fit_single_frame(img,
                     vposer=vposer,
                     use_vposer=use_vposer)
 
-                export_body_model(body_model, "./body_model-or_idx{}-opt_idx{}.ply".format(or_idx, opt_idx))
+                export_body_model(body_model, prox_result_dir + "/body_model-or_idx{}-opt_idx{}.ply".format(or_idx, opt_idx))
                 if interactive:
                     if use_cuda and torch.cuda.is_available():
                         torch.cuda.synchronize()

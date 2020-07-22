@@ -239,6 +239,8 @@ class FittingMonitor(object):
                                          device=body_pose.device)
                 body_pose = torch.cat([body_pose, wrist_pose], dim=1)
 
+            print("body_model.transl:", body_model.transl)
+            print("body_model.global_orient:", body_model.global_orient)
             body_model_output = body_model(return_verts=return_verts,
                                            body_pose=body_pose,
                                            return_full_pose=return_full_pose)
@@ -258,44 +260,6 @@ class FittingMonitor(object):
             if backward:
                 total_loss.backward(create_graph=create_graph)
 
-
-            if self.visualize:
-                model_output = body_model(return_verts=True,
-                                          body_pose=body_pose)
-                vertices = model_output.vertices.detach().cpu().numpy()
-
-                if self.steps == 0 and self.viz_mode == 'o3d':
-
-                    self.body_o3d.vertices = o3d.Vector3dVector(vertices.squeeze())
-                    self.body_o3d.triangles = o3d.Vector3iVector(body_model.faces)
-                    self.body_o3d.vertex_normals = o3d.Vector3dVector([])
-                    self.body_o3d.triangle_normals = o3d.Vector3dVector([])
-                    self.body_o3d.compute_vertex_normals()
-                    self.vis_o3d.add_geometry(self.body_o3d)
-
-                    if scan_tensor is not None:
-                        self.scan.points = o3d.Vector3dVector(scan_tensor.detach().cpu().numpy().squeeze())
-                        N = np.asarray(self.scan.points).shape[0]
-                        self.scan.colors = o3d.Vector3dVector(np.tile([1.00, 0.75, 0.80], [N, 1]))
-                        self.vis_o3d.add_geometry(self.scan)
-
-                    self.vis_o3d.update_geometry()
-                    self.vis_o3d.poll_events()
-                    self.vis_o3d.update_renderer()
-                elif self.steps % self.summary_steps == 0:
-                    if self.viz_mode == 'o3d':
-                        self.body_o3d.vertices = o3d.Vector3dVector(vertices.squeeze())
-                        self.body_o3d.triangles = o3d.Vector3iVector(body_model.faces)
-                        self.body_o3d.vertex_normals = o3d.Vector3dVector([])
-                        self.body_o3d.triangle_normals = o3d.Vector3dVector([])
-                        self.body_o3d.compute_vertex_normals()
-
-                        self.vis_o3d.update_geometry()
-                        self.vis_o3d.poll_events()
-                        self.vis_o3d.update_renderer()
-                    else:
-                        self.mv.update_mesh(vertices.squeeze(),
-                                        body_model.faces)
             self.steps += 1
 
             return total_loss
@@ -395,11 +359,13 @@ class SMPLifyLoss(nn.Module):
                 scan_tensor=None, scan_normal=None, keypoints3d=None, visualize=False,
                 opt_idx=None,
                 **kwargs):
+        print("opt_idx:", opt_idx)
         projected_joints = camera(body_model_output.joints)
         # Calculate the weights for each joints
         weights = (joint_weights * joints_conf
                    if self.use_joints_conf else
                    joint_weights).unsqueeze(dim=-1)
+        # print("weights:", weights, " data_weight:", self.data_weight)
 
         # Calculate the distance of the projected joints from
         # the ground truth 2D detections
@@ -408,38 +374,36 @@ class SMPLifyLoss(nn.Module):
             if gt_joints[0,i,0].numpy() == 0.0 or gt_joints[0,i,1].numpy() == 0.0:
                 joint_diff[0,i,:] = torch.tensor([0.0, 0.0])
         joint_loss = (torch.sum(weights ** 2 * joint_diff) *
-                         self.data_weight ** 2) * 0.01
+                         self.data_weight ** 2) #* 0.01
 
         joint3d_loss = 0.0
-        if keypoints3d is not None:
-            diff = keypoints3d - body_model_output.joints
-            for i in range(keypoints3d.shape[1]):
-                if keypoints3d[0,i,2].numpy() <= 0.5:
-                    diff[0,i,:] = torch.tensor([0.0, 0.0, 0.0])
-                # diff[0,i,2] = torch.tensor(0.0)
-            joint3d_diff = self.robustifier(diff)
-            wfactor = 1.e5
-            joint3d_loss = (torch.sum(weights ** 2 * joint3d_diff) *
-                          self.data_weight ** 2) * wfactor
+        # if keypoints3d is not None:
+        #     diff = keypoints3d - body_model_output.joints
+        #     for i in range(keypoints3d.shape[1]):
+        #         if keypoints3d[0,i,2].numpy() <= 0.5:
+        #             diff[0,i,:] = torch.tensor([0.0, 0.0, 0.0])
+        #         # diff[0,i,2] = torch.tensor(0.0)
+        #     joint3d_diff = self.robustifier(diff)
+        #     wfactor = 1.e5
+        #     joint3d_loss = (torch.sum(weights ** 2 * joint3d_diff) *
+        #                   self.data_weight ** 2) * wfactor
             # print("joint3d_diff:", joint3d_diff[0])
 
         # Calculate the loss from the Pose prior
-        if use_vposer:
-            pprior_loss = (pose_embedding.pow(2).sum() *
-                           self.body_pose_weight ** 2)
-        else:
-            pprior_loss = torch.sum(self.body_pose_prior(
-                body_model_output.body_pose,
-                body_model_output.betas)) * self.body_pose_weight ** 2
-
+        pprior_loss = (pose_embedding.pow(2).sum() * self.body_pose_weight ** 2)
+        print("body_pose_weight:", self.body_pose_weight,
+              " shape_weight:", self.shape_weight, 
+              " bending_prior_weight", self.bending_prior_weight)
+        
         shape_loss = torch.sum(self.shape_prior(
             body_model_output.betas)) * self.shape_weight ** 2
 
         # Calculate the prior over the joint rotations. This a heuristic used
         # to prevent extreme rotation of the elbows and knees
         body_pose = body_model_output.full_pose[:, 3:66]
-        angle_prior_loss = torch.sum(
-            self.angle_prior(body_pose)) * self.bending_prior_weight #** 2
+        angle_prior_loss = 0.0
+        # angle_prior_loss = torch.sum(
+        #     self.angle_prior(body_pose)) * self.bending_prior_weight #** 2
 
         icp_dist = 0.0
         s2m_dist = 0.0
@@ -481,12 +445,12 @@ class SMPLifyLoss(nn.Module):
 #                m2s_dist = self.m2s_weight * m2s_dist.sum()
 
         # Transform vertices to world coordinates
-        if self.R is not None and self.t is not None:
-            vertices = body_model_output.vertices
-            nv = vertices.shape[1]
-            vertices.squeeze_()
-            vertices = self.R.mm(vertices.t()).t() + self.t.repeat([nv, 1])
-            vertices.unsqueeze_(0)
+        # if self.R is not None and self.t is not None:
+        #     vertices = body_model_output.vertices
+        #     nv = vertices.shape[1]
+        #     vertices.squeeze_()
+        #     vertices = self.R.mm(vertices.t()).t() + self.t.repeat([nv, 1])
+        #     vertices.unsqueeze_(0)
 
         # if opt_idx >=3: # down weight priors
         #     joint_loss *= 1.e-2
@@ -494,7 +458,7 @@ class SMPLifyLoss(nn.Module):
         #     pprior_loss *= 1.e-2
         #     shape_loss *= 1.e-2
         #     angle_prior_loss *= 1.e-2
-
+        total_loss = 0.0
         if opt_idx >=3: # down weight priors
             joint_loss *= 1.e1
             joint3d_loss *= 0.0
@@ -502,12 +466,19 @@ class SMPLifyLoss(nn.Module):
             shape_loss *= 0.0
             angle_prior_loss *= 0.0
 
-        total_loss = (joint_loss + 
+            total_loss = (joint_loss + s2m_dist
+                          )
+        else:
+            total_loss = (joint_loss + 
                       joint3d_loss +
                       pprior_loss + shape_loss +
                       angle_prior_loss +
                       m2s_dist + s2m_dist
                       )
+        # print("body_model_output.transl:", body_model_output.transl)
+        # print("body_model_output.global_orient:", body_model_output.global_orient)
+        print("body_model_output.betas:", body_model_output.betas)
+        print("pose_embedding:", pose_embedding)
         print("total:{:.2f}".format(total_loss),
               " joint_loss:{:.2f}".format(joint_loss),
               " joint3d_loss:{:.2f}".format(joint3d_loss),
@@ -575,24 +546,20 @@ class SMPLifyCameraInitLoss(nn.Module):
         joint_loss = torch.sum(joint_error) * self.data_weight ** 2
 
         joint3d_loss = 0.0
-        if keypoints3d is not None:
-             joint3d_diff = torch.pow(
-                     torch.index_select(keypoints3d, 1, self.init_joints_idxs) -
-                     torch.index_select(body_model_output.joints, 1, self.init_joints_idxs), 2)
-             joint3d_loss = (torch.sum(joint3d_diff) *
-                           self.data_weight ** 2) * 1e6
+        # if keypoints3d is not None:
+        #      joint3d_diff = torch.pow(
+        #              torch.index_select(keypoints3d, 1, self.init_joints_idxs) -
+        #              torch.index_select(body_model_output.joints, 1, self.init_joints_idxs), 2)
+        #      joint3d_loss = (torch.sum(joint3d_diff) *
+        #                    self.data_weight ** 2) * 1e6
 
         depth_loss = 0.0
         if (self.depth_loss_weight.item() > 0 and self.trans_estimation is not
                 None):
-            if self.camera_mode == 'moving':
-                depth_loss = self.depth_loss_weight ** 2 * torch.sum((
-                                                                             camera.translation[:,
-                                                                             2] - self.trans_estimation[:, 2]).pow(2))
-            elif self.camera_mode == 'fixed':
-                depth_loss = self.depth_loss_weight ** 2 * torch.sum((
-                    body_model.transl[:, 2] - self.trans_estimation[:, 2]).pow(2))
-            print("trans_estimation:", self.trans_estimation, 
+
+            depth_loss = self.depth_loss_weight ** 2 * torch.sum((
+                body_model.transl[:, 2] - self.trans_estimation[:, 2]).pow(2))
+            print("depth_loss_weight:", self.depth_loss_weight.item(), "trans_estimation:", self.trans_estimation, 
                   "  trans:", body_model.transl)
 
         total_loss = (joint_loss + 

@@ -141,7 +141,7 @@ def calc_loss(results, vposer):
 if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    fn = "/home/william/dev/thirdparty/prox/separate_fit_result-4frames.torch.bin"
+    fn = "/home/william/dev/thirdparty/prox/separate_fit_result-4frames-2020_07_15.torch.bin"
     print("Load separate fit results from ({})".format(fn))
     results = torch.load(fn)
     parameterize_results(results)
