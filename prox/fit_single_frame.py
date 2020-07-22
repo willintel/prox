@@ -163,6 +163,7 @@ def fit_single_frame(img,
     gt_joints = keypoint_data[:, :, :2]
     if use_joints_conf:
         joints_conf = keypoint_data[:, :, 2].reshape(1, -1)
+        # print("joints_conf:", joints_conf)
 
     # Transfer the data to the correct device
     gt_joints = gt_joints.to(device=device, dtype=dtype)
@@ -318,7 +319,7 @@ def fit_single_frame(img,
         # body_model.reset_params(transl=init_t)
         
         export_body_model(body_model, prox_result_dir + "/body_model-cam_after.ply")
-        return None
+        # return None
 
         if interactive:
             tqdm.write('Camera initialization done after {:.4f}'.format(
@@ -360,6 +361,7 @@ def fit_single_frame(img,
                     pose_embedding.fill_(0)
 
             for opt_idx, curr_weights in enumerate(tqdm(opt_weights, desc='Stage')):
+                print("\n\n\nEpoch", opt_idx, " -------------------------------------------------------------------------")
                 if opt_idx not in trans_opt_stages:
                     body_model.transl.requires_grad = False
                 else:
